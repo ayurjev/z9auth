@@ -18,28 +18,12 @@ class AuthenticationService(object):
         self.client = MongoClient('mongo', 27017)
         self.credentials = self.client.db.credentials
 
-    def get_credentials_record(self, credentials: 'Credentials') -> Optional[dict]:
-        """ Возвращает запись из БД, соответствующую переданным учетным данным, если такие найдены
-        :param credentials:
-        :return:
-        """
-        match = None
-        if credentials.vk_id:
-            match = self.credentials.find_one({"vk_id": credentials.vk_id})
-        if credentials.token:
-            match = self.credentials.find_one({"token": credentials.token})
-        if credentials.email:
-            match = self.credentials.find_one({"email": credentials.email})
-        if credentials.phone:
-            match = self.credentials.find_one({"phone": credentials.phone})
-        return match
-
     def register(self, credentials: 'Credentials') -> str:
         """ Начинает процедуру регистрации, создает пустую запись, генерирует и возвращает код верификации
         :param credentials:
         :return:
         """
-        match = self.get_credentials_record(credentials)
+        match = self._get_credentials_record(credentials)
         if match:
             raise AlreadyRegistred()
         if not credentials.email and not credentials.phone and not credentials.vk_id:
@@ -62,14 +46,21 @@ class AuthenticationService(object):
             "verification_code": CodesGenerator.gen_pincode()
         }
         self._insert_inc(doc)
-        return doc["verification_code"]
+        return {
+            "verification": {
+                "send_code": doc["verification_code"],
+                "send_via": "email" if credentials.email else ("phone" if credentials.phone else None),
+                "send_address": credentials.email or credentials.phone
+            }
+        }
+
 
     def authenticate(self, credentials: 'Credentials') -> Tuple[int, str]:
         """ Выполняет попытку аутентификации пользователя на основе предоставленных данных
         @param credentials:
         @return:
         """
-        match = self.get_credentials_record(credentials)
+        match = self._get_credentials_record(credentials)
         if not match:
             raise IncorrectLogin()
         elif match and (credentials.email or credentials.phone) and match["password"] != md5(credentials.password):
@@ -92,14 +83,14 @@ class AuthenticationService(object):
         if not md5(vk_data.replace("&", "") + os.environ.get("VK_APP_SECRET_KEY")) == sig:
             raise IncorrectOAuthSignature()
 
-        match = self.get_credentials_record(credentials)
+        match = self._get_credentials_record(credentials)
 
         if match:
             token = CodesGenerator.gen_token()
             self.credentials.update_one(match, {"$set": {"token": token, "vk_id": credentials.vk_id}})
         else:
             self.register(credentials)
-            match = self.get_credentials_record(credentials)
+            match = self._get_credentials_record(credentials)
         return match["_id"], match["token"]
 
     def recover_password(self, credentials: 'Credentials') -> str:
@@ -108,13 +99,17 @@ class AuthenticationService(object):
         @return:
         """
         new_password = CodesGenerator.gen_password()
-        match = self.get_credentials_record(credentials)
+        match = self._get_credentials_record(credentials)
         if match and match["email"] and match["email_verified"]:
             self.credentials.update_one(match, {"$set": {"password": md5(new_password)}})
-            return "email", new_password
+            return {"password_recovery": {
+                "send_password": new_password, "send_via": "email", "send_address": credentials.email
+            }}
         elif match and match["phone"] and match["phone_verified"]:
             self.credentials.update_one(match, {"$set": {"password": md5(new_password)}})
-            return "phone", new_password
+            return {"password_recovery": {
+                "send_password": new_password, "send_via": "phone", "send_address": credentials.phone
+            }}
         else:
             raise IncorrectLogin()
 
@@ -129,7 +124,7 @@ class AuthenticationService(object):
         """
         auth = self.authenticate(credentials)
         if auth:
-            match = self.get_credentials_record(credentials)
+            match = self._get_credentials_record(credentials)
             if match:
                 if match["password"] != md5(old_pass):
                     raise IncorrectPassword()
@@ -138,10 +133,14 @@ class AuthenticationService(object):
 
                 if match and match["email"] and match["email_verified"]:
                     self.credentials.update_one(match, {"$set": {"password": md5(new_pass)}})
-                    return "email", new_pass
+                    return {"new_password": {
+                        "send_password": new_pass, "send_via": "email", "send_address": match["email"]
+                    }}
                 elif match and match["phone"] and match["phone_verified"]:
                     self.credentials.update_one(match, {"$set": {"password": md5(new_pass)}})
-                    return "phone", new_pass
+                    return {"new_password": {
+                        "send_password": new_pass, "send_via": "phone", "send_address": match["phone"]
+                    }}
 
     def set_new_email(self, credentials: 'Credentials', new_email: str) -> str:
         """ Начинает процесс смены email адреса, ставит его в tmp-состояние и возвращает код верификации
@@ -151,7 +150,7 @@ class AuthenticationService(object):
         """
         auth = self.authenticate(credentials)
         if auth:
-            match = self.get_credentials_record(credentials)
+            match = self._get_credentials_record(credentials)
             if match:
                 change = {
                     "email_tmp": new_email,
@@ -160,7 +159,9 @@ class AuthenticationService(object):
                     "verification_code": CodesGenerator.gen_pincode()
                 }
                 self.credentials.update_one(match, {"$set": change})
-                return change["verification_code"]
+                return {"verification": {
+                    "send_code": change["verification_code"], "send_via": "email", "send_address": new_email
+                }}
 
     def set_new_phone(self, credentials: 'Credentials', new_phone: str) -> str:
         """ Начинает процесс смены номера телефона, ставит его в tmp-состояние и возвращает код верификации
@@ -170,7 +171,7 @@ class AuthenticationService(object):
         """
         auth = self.authenticate(credentials)
         if auth:
-            match = self.get_credentials_record(credentials)
+            match = self._get_credentials_record(credentials)
             if match:
                 change = {
                     "phone_tmp": new_phone,
@@ -179,7 +180,9 @@ class AuthenticationService(object):
                     "verification_code": CodesGenerator.gen_pincode()
                 }
                 self.credentials.update_one(match, {"$set": change})
-                return change["verification_code"]
+                return {"verification": {
+                    "send_code": change["verification_code"], "send_via": "phone", "send_address": new_phone
+                }}
 
     def verify_email(self, credentials: 'Credentials', verification_code: str) -> bool:
         """ Подтверждает регистрационный данные (email) на основе кода верификации
@@ -194,20 +197,22 @@ class AuthenticationService(object):
         @param verification_code:
         """
         return self._verify(credentials, verification_code, "phone")
-    
-    def check_phone_registration(self, phone: str) -> bool:
-        """ Метод проверки регистрации по номеру телефона
-        :param phone: Номер телефона
-        :return:
-        """
-        return self.credentials.find_one({"phone": phone, "phone_verified": True}) is not None
 
-    def check_email_registration(self, email: str) -> bool:
-        """ Метод проверки регистрации по адресу электронной почты
-        :param email: Электронная почта
+    def _get_credentials_record(self, credentials: 'Credentials') -> Optional[dict]:
+        """ Возвращает запись из БД, соответствующую переданным учетным данным, если такие найдены
+        :param credentials:
         :return:
         """
-        return self.credentials.find_one({"email": email, "email_verified": True}) is not None
+        match = None
+        if credentials.vk_id:
+            match = self.credentials.find_one({"vk_id": credentials.vk_id})
+        if credentials.token:
+            match = self.credentials.find_one({"token": credentials.token})
+        if credentials.email:
+            match = self.credentials.find_one({"email": credentials.email})
+        if credentials.phone:
+            match = self.credentials.find_one({"phone": credentials.phone})
+        return match
 
     def _check_verification_code(self, target_user: dict, verification_code: str) -> bool:
         """ Проверяет код верификации
@@ -242,10 +247,10 @@ class AuthenticationService(object):
         :param type_name:
         :return:
         """
-        target_user = self.get_credentials_record(credentials)
+        target_user = self._get_credentials_record(credentials)
         if target_user and (target_user["email_verified"] or target_user["phone_verified"]):
             self.authenticate(credentials)
-            target_user = self.get_credentials_record(credentials) # because authenticate() changes token
+            target_user = self._get_credentials_record(credentials) # because authenticate() changes token
         else:
             target_user = self.credentials.find_one({
                 "%s_tmp" % type_name: object.__getattribute__(credentials, type_name)

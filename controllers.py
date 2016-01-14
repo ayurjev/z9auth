@@ -1,121 +1,138 @@
-"""
-    Contrllers for
-    Authentification service z9auth
-"""
+""" Контроллеры сервиса """
 
-from datetime import datetime, timedelta
-from envi import Controller, Request, Application
+import json
+from envi import Controller, Request
+from models import Credentials, AuthenticationService
+from exceptions import BaseAuthException
+
+service = AuthenticationService()
 
 
+def error_format(func):
+    """ Декоратор для обработки любых исключений возникающих при работе сервиса
+    :param func:
+    """
+    def wrapper(*args, **kwargs):
+        """ wrapper
+        :param args:
+        :param kwargs:
+        """
+        try:
+            return func(*args, **kwargs)
+        except BaseAuthException as e:
+            return json.dumps({"error": {"code": e.code}})
+    return wrapper
 
 
 class AuthController(Controller):
-    """ AuthController """
+    """ Контроллер """
 
     @classmethod
-    def authentificate(cls, request: Request):
-        """
-        Выполняет аутентификацию пользователя по переданному объекту Request
-        :param request: Запрос пользователя
+    def build_credentials(cls, request: Request):
+        """ Метод для создания экземпляра класса Credentials на основе предоставленного объекта Request
+        :param request:
         :return:
         """
-
-        if request.get("login", False) and request.get("login"):
-            return AuthentificationService.authentificate(
-                (request.get("login"), request.get("password")), request.get("token", False)
-            )
-        elif request.get("phone", False) and request.get("phone") and request.get("password", False) and request.get("password"):
-            phone = request.get("phone").replace(" ", "").replace("(", "").replace(")", "").replace("-", "")
-            return AuthentificationService.authentificate(
-                (phone, request.get("password")), request.get("token", False)
-            )
-        else:
-            return AuthentificationService.authentificate(
-                token=request.get("token", False)
-            )
+        credentials = Credentials()
+        credentials.email = request.get("email", None)
+        credentials.phone = request.get("phone", None)
+        credentials.token = request.get("token", None)
+        credentials.password = request.get("password", None)
+        credentials.vk_id = request.get("vk_id", None)
+        return credentials
 
     @classmethod
-    def auth(cls, request: Request, **kwargs) -> bool:
-        try:
-            user = cls.authentificate_by_request(request)
-            if user:
-                request.response.set_cookie(
-                    "token", user.set_new_token() if not request.get("use_prev_token", False) else user.token,
-                    path="/", expires=datetime.now() + timedelta(days=30)
-                )
-                return {"redirect_to": cls.root} if not request.get("use_prev_token", False) else True
-        except (NoDataForAuth, IncorrectToken) as err:
-            request.response.set_cookie(
-                "token", "", path="/", expires=datetime.now() - timedelta(seconds=30*60)
+    @error_format
+    def register(cls, request: Request, **kwargs):
+        """ Метод для регистрации новых учетных данных
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return json.dumps(service.register(cls.build_credentials(request)))
+
+    @classmethod
+    @error_format
+    def authenticate(cls, request: Request, **kwargs):
+        """ Метод для выполнения попытки аутентификации
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return json.dumps(service.authenticate(cls.build_credentials(request)))
+
+    @classmethod
+    @error_format
+    def authenticate_vk(cls, request: Request, **kwargs):
+        """ Метод для выполнения аутентификации через Вк
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        vk_data, sig = request.get("vk_concated_string"), request.get("signature")
+        return json.dumps(service.authenticate_vk(cls.build_credentials(request), vk_data, sig))
+
+    @classmethod
+    @error_format
+    def recover_password(cls, request: Request, **kwargs):
+        """ Метод для восстановления пароля пользователя
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return json.dumps(service.recover_password(cls.build_credentials(request)))
+
+    @classmethod
+    @error_format
+    def set_new_password(cls, request: Request, **kwargs):
+        """ Метод для восстановления пароля пользователя
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return json.dumps(
+            service.set_new_password(
+                cls.build_credentials(request), request.get("current_password"),
+                request.get("new_password"), request.get("new_password")
             )
-            raise err
-
-    @classmethod
-    def unauth(cls, app: Application, request: Request, **kwargs) -> bool:
-        request.response.set_cookie("token", "", path="/", expires=datetime.now() - timedelta(seconds=30*60))
-        app.redirect(cls.root)
-
-    @classmethod
-    def change_password(cls, request: Request, **kwargs):
-        return AuthentificationService.change_password(request.get("login"))
-
-    @classmethod
-    def set_new_password(cls, user, request: Request, host, **kwargs):
-        return AuthentificationService.set_new_password(
-            user, request.get("current_password"),
-            request.get("new_password"), request.get("new_password2")
         )
 
     @classmethod
-    def check_phone_registration(cls, user, request: Request, **kwargs):
-        return AuthentificationService.check_phone_registration(Phone(request.get("phone")).get_value())
+    @error_format
+    def set_new_email(cls, request: Request, **kwargs):
+        """ Метод для восстановления пароля пользователя
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return json.dumps(service.set_new_email(cls.build_credentials(request), request.get("new_email")))
 
     @classmethod
-    def send_email_verification_code(cls, user, request: Request, **kwargs):
-        return AuthentificationService.send_email_verification_code(user, request.get("email"))
+    @error_format
+    def set_new_phone(cls, request: Request, **kwargs):
+        """ Метод для восстановления пароля пользователя
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return json.dumps(service.set_new_phone(cls.build_credentials(request), request.get("new_phone")))
 
     @classmethod
-    def register(cls, user, request: Request, **kwargs):
-        registred_user = AuthentificationService.register(
-            user, request.get("email"), request.get("email_verification_code"), request.get("password")
-        )
-        if registred_user:
-            request.response.set_cookie(
-                "token", registred_user.set_new_token() if not request.get("use_prev_token", False) else registred_user.token,
-                path="/", expires=datetime.now() + timedelta(days=30)
-            )
-            return {"redirect_to": cls.root} if not user or user.id != registred_user.id else True
+    @error_format
+    def verify_email(cls, request: Request, **kwargs):
+        """ Метод для подтверждения электронной почты
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return json.dumps(service.verify_email(cls.build_credentials(request), request.get("verification_code")))
 
     @classmethod
-    def send_phone_verification_code(cls, user, request: Request, **kwargs):
-        return AuthentificationService.send_phone_verification_code(user, Phone(request.get("phone")).get_value())
-
-    @classmethod
-    def verify_phone(cls, user, request: Request, **kwargs):
-        return AuthentificationService.verify_phone(
-            user, Phone(request.get("phone")).get_value(), request.get("phone_verification_code")
-        )
-
-    @classmethod
-    def recover_password(cls, user, request: Request, **kwargs):
-        return AuthentificationService.recover_password(request.get("login"))
-
-    @classmethod
-    def vk_auth(cls, user, request: Request, **kwargs):
-        vkid = request.get("id")
-        name = request.get("name")
-        href = request.get("href")
-        photo = request.get("photo")
-        vk_data = request.get("vk_app_%d" % VK_APP_ID)
-        vk_data, sig = vk_data.split("&sig=")
-        target_user = AuthentificationService.authentificate_by_vk(user, vkid, name, href, photo, vk_data, sig)
-        if target_user:
-            request.response.set_cookie(
-                "token", target_user.token,
-                path="/", expires=datetime.now() + timedelta(days=30)
-            )
-            return {
-                "redirect_to": cls.root,
-                "user": target_user.data,
-                "preview_randomizer": datetime.now().microsecond
-            }
+    @error_format
+    def verify_phone(cls, request: Request, **kwargs):
+        """ Метод для подтверждения номера телефона
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return json.dumps(service.verify_phone(cls.build_credentials(request), request.get("verification_code")))

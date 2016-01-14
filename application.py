@@ -8,3 +8,4 @@ from controllers import AuthController
 
 application = EnviApplication()
 application.route("/<action>/", AuthController)
+application.route("/v1/<action>/", AuthController)
