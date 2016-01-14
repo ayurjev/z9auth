@@ -1,7 +1,8 @@
 
 
+import os
 import unittest
-from models import AuthenticationService, Credentials
+from models import AuthenticationService, Credentials, md5
 from exceptions import *
 
 
@@ -293,3 +294,75 @@ class ChangeCredentialsCase(unittest.TestCase):
         self.service.verify_phone(self.phone_credentials, verification_code)
         self.service.authentificate(new_phone_credentials)
         self.assertRaises(IncorrectLogin, lambda: self.service.authentificate(self.phone_credentials))
+
+
+class VkAuthCase(unittest.TestCase):
+
+    def setUp(self):
+        self.service = AuthenticationService()
+
+    def tearDown(self):
+        self.service.credentials.delete_many({})
+
+    def test_init_registration_with_vk(self):
+        os.environ["VK_APP_SECRET_KEY"] = "12345"
+        vk_id = 42
+        vk_concated_string = "blablabla=1&blabla=2"
+        sig = md5(vk_concated_string.replace("&", "") + "12345")
+        credentials = Credentials()
+        credentials.set_vk_id(vk_id)
+        result = self.service.vk_auth(credentials, vk_concated_string, sig)
+        self.assertTrue(isinstance(result, tuple))
+        self.assertEqual(1, result[0])
+        self.assertEqual(32, len(result[1]))
+        token = result[1]
+
+        # Используя токен, полученный при регистрации через вк авторизуемся стандартным путем:
+        credentials.set_token(token)
+        auth_result = self.service.authentificate(credentials)
+        self.assertTrue(isinstance(auth_result, tuple))
+        self.assertEqual(1, auth_result[0])
+        self.assertEqual(token, auth_result[1])
+
+    def test_vk_auth_after_normal_registartion(self):
+        os.environ["VK_APP_SECRET_KEY"] = "12345"
+        vk_id = 42
+        vk_concated_string = "blablabla=1&blabla=2"
+        sig = md5(vk_concated_string.replace("&", "") + "12345")
+
+        # Обычная регистрация, получаем токен:
+        credentials = Credentials()
+        credentials.set_phone("+79263435016")
+        credentials.set_password("qwerty123")
+        verification_code = self.service.register(credentials)
+        self.service.verify_phone(credentials, verification_code)
+        auth_result = self.service.authentificate(credentials)
+        self.assertEqual(1, auth_result[0])
+        token = auth_result[1]
+
+        # Используем токен и укажем vk_id:
+        new_credentials = Credentials()
+        new_credentials.set_token(token)
+        new_credentials.set_vk_id(vk_id)
+        vk_auth_result = self.service.vk_auth(new_credentials, vk_concated_string, sig)
+        self.assertTrue(isinstance(vk_auth_result, tuple))
+        self.assertEqual(1, vk_auth_result[0])
+        self.assertEqual(token, vk_auth_result[1])
+
+        # Теперь можно и без токена:
+        new_credentials = Credentials()
+        new_credentials.set_vk_id(vk_id)
+        vk_auth_result = self.service.vk_auth(new_credentials, vk_concated_string, sig)
+        self.assertTrue(isinstance(vk_auth_result, tuple))
+        self.assertEqual(1, vk_auth_result[0])
+        self.assertEqual(32, len(vk_auth_result[1]))
+        self.assertNotEqual(token, vk_auth_result[1])
+
+    def test_vk_auth_fail(self):
+        os.environ["VK_APP_SECRET_KEY"] = "12345"
+        vk_id = 42
+        vk_concated_string = "blablabla=1&blabla=2"
+        sig = md5(vk_concated_string.replace("&", "") + "12345")
+        credentials = Credentials()
+        credentials.set_vk_id(vk_id)
+        self.assertRaises(IncorrectOAuthSignature, self.service.vk_auth, credentials, vk_concated_string, sig+"1")

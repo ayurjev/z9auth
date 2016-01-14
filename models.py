@@ -8,7 +8,7 @@ import random
 import hashlib
 from datetime import datetime, timedelta
 from exceptions import *
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from pymongo import MongoClient, DESCENDING
 from pymongo.errors import DuplicateKeyError
@@ -31,6 +31,7 @@ class Credentials(object):
         self.phone = None
         self.password = None
         self.token = None
+        self.vk_id = None
 
     def set_email(self, email: str) -> None:
         """ Adds an email into Credentials object
@@ -57,6 +58,12 @@ class Credentials(object):
         """
         self.token = token
 
+    def set_vk_id(self, vk_id: Union[str, int]) -> None:
+        """ Adds a token into Credentials object
+        :param vk_id:
+        """
+        self.vk_id = vk_id
+
 
 class AuthenticationService(object):
     """ Authentication service itself
@@ -76,6 +83,8 @@ class AuthenticationService(object):
         :return: Dictionary of data stored in storage
         """
         match = None
+        if credentials.vk_id:
+            match = self.credentials.find_one({"vk_id": credentials.vk_id})
         if credentials.token:
             match = self.credentials.find_one({"token": credentials.token})
         if credentials.email:
@@ -111,15 +120,15 @@ class AuthenticationService(object):
         match = self.get_credentials_record(credentials)
         if match:
             raise AlreadyRegistred()
-        if not credentials.email and not credentials.phone:
+        if not credentials.email and not credentials.phone and not credentials.vk_id:
             raise IncorrectLogin()
-        if not credentials.password:
+        if (credentials.email or credentials.phone) and not credentials.password:
             raise IncorrectPassword()
 
         doc = {
             "email": None,
             "phone": None,
-            "vk": None,
+            "vk_id": credentials.vk_id,
             "token": self.generate_new_token(),
             "password": md5(credentials.password),
             "email_tmp": credentials.email,
@@ -333,36 +342,23 @@ class AuthenticationService(object):
         """
         return self._verify(credentials, verification_code, "phone")
 
-    @classmethod
-    def authentificate_by_vk(cls, login, vkid, name, href, photo, vk_data, sig):
+    def vk_auth(self, credentials: Credentials, vk_data: str, sig: str):
         """ Выполняет аутентификацию на основе Вконтакте API
-        :param login: Логин пользователя
-        :param vkid: Идентификатор Вк
-        :param name: Имя пользователя согласно Вк
-        :param href: URL пользователя Вк
-        :param photo: Аватарка пользователя Вк
-        :param vk_data: Данные Вк для проверки подписи
+        :param credentials:
+        :param vk_data: Данные Вк для проверки подписи (Сконкатенированная строка)
         :param sig: Подпись
         :return:
         """
         if not md5(vk_data.replace("&", "") + os.environ.get("VK_APP_SECRET_KEY")) == sig:
             raise IncorrectOAuthSignature()
 
-        user_by_vkid = object
-        user_by_login = object
+        match = self.get_credentials_record(credentials)
 
-        if user_by_login and not user_by_vkid:
-            target_user = user_by_login
-        elif user_by_vkid and not user_by_login:
-            target_user = user_by_vkid
-        elif user_by_vkid and user_by_login:
-            target_user = user_by_vkid
+        if match:
+            token = self.generate_new_token()
+            self.credentials.update_one(match, {"$set": {"token": token, "vk_id": credentials.vk_id}})
         else:
-            target_user = object
-            target_user.password = cls.gen_password()
-            target_user.token = md5(cls.gen_password())
+            self.register(credentials)
+            match = self.get_credentials_record(credentials)
 
-        target_user.name = name
-        target_user.vk = vkid
-        target_user.vk_href = href
-        return True
+        return match["_id"], match["token"]
