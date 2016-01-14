@@ -215,6 +215,9 @@ class AuthenticationService(object):
         :param verification_code:
         :return:
         """
+        if not target_user["verification_code"]:
+            raise NoVerificationProcess()
+
         if not verification_code or verification_code != target_user["verification_code"]:
             if target_user["verification_code_failed_attempts"] < 3:
                 self.credentials.update_one(target_user, {"$inc": {"verification_code_failed_attempts": 1}})

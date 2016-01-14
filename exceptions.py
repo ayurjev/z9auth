@@ -55,3 +55,8 @@ class NoSuchUser(Exception):
 class AlreadyRegistred(Exception):
     """ Уже зарегистрирован в системе """
     code = 11
+
+
+class NoVerificationProcess(Exception):
+    """ Верификация не начата """
+    code = 12

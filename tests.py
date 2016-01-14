@@ -296,6 +296,25 @@ class ChangeCredentialsCase(unittest.TestCase):
         self.service.authenticate(new_phone_credentials)
         self.assertRaises(IncorrectLogin, lambda: self.service.authenticate(self.phone_credentials))
 
+    def test_fail_to_verify_phone_when_email_verified_doesnt_remove_credentials(self):
+        verification_code = self.service.set_new_phone(self.email_credentials, "+79164143212")
+        self.assertRaises(IncorrectVerificationCode, self.service.verify_phone, self.email_credentials, "bla")
+        self.assertRaises(IncorrectVerificationCode, self.service.verify_phone, self.email_credentials, "bla")
+        self.assertRaises(IncorrectVerificationCode, self.service.verify_phone, self.email_credentials, "bla")
+        self.assertRaises(IncorrectVerificationCodeFatal, self.service.verify_phone, self.email_credentials, "bla")
+        self.assertRaises(NoVerificationProcess, self.service.verify_phone, self.email_credentials, verification_code)
+
+        self.service.authenticate(self.email_credentials)
+        verification_code = self.service.set_new_phone(self.email_credentials, "+79164143212")
+        self.service.verify_phone(self.email_credentials, verification_code)
+
+        new_phone_credentials = Credentials()
+        new_phone_credentials.phone = "+79164143212"
+        new_phone_credentials.password = self.email_credentials.password
+        auth_result = self.service.authenticate(new_phone_credentials)
+        self.assertTrue(isinstance(auth_result, tuple))
+        self.assertEqual(1, auth_result[0])
+
 
 class VkAuthCase(unittest.TestCase):
 
