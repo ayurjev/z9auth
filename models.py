@@ -1,6 +1,6 @@
 """
     Models for
-    Authentification service z9auth
+    Authentication service z9auth
 """
 
 import os
@@ -53,13 +53,13 @@ class Credentials(object):
 
     def set_token(self, token: str) -> None:
         """ Adds a token into Credentials object
-        :param token: Authentification token (secret)
+        :param token: Authentication token (secret)
         """
         self.token = token
 
 
-class AuthentificationService(object):
-    """ Authentification service itself
+class AuthenticationService(object):
+    """ Authentication service itself
 
         Does all work to confirm or deny authority of user by given credentials.
         Also, handles operations in order to create/remove credentials,

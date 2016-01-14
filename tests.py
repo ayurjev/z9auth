@@ -1,14 +1,14 @@
 
 
 import unittest
-from models import AuthentificationService, Credentials
+from models import AuthenticationService, Credentials
 from exceptions import *
 
 
 class RegistrationCase(unittest.TestCase):
 
     def setUp(self):
-        self.service = AuthentificationService()
+        self.service = AuthenticationService()
 
     def tearDown(self):
         self.service.credentials.delete_many({})
@@ -99,7 +99,7 @@ class RegistrationCase(unittest.TestCase):
 class AuthentificationCase(unittest.TestCase):
 
     def setUp(self):
-        self.service = AuthentificationService()
+        self.service = AuthenticationService()
         self.email_credentials = Credentials()
         self.email_credentials.set_email("andrey.yurjev@test.ru")
         self.email_credentials.set_password("qwerty123")
@@ -210,7 +210,7 @@ class AuthentificationCase(unittest.TestCase):
 class ChangeCredentialsCase(unittest.TestCase):
 
     def setUp(self):
-        self.service = AuthentificationService()
+        self.service = AuthenticationService()
         self.email_credentials = Credentials()
         self.email_credentials.set_email("andrey.yurjev@test.ru")
         self.email_credentials.set_password("qwerty123")
