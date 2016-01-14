@@ -1,7 +1,4 @@
-"""
-    Models for
-    Authentication service z9auth
-"""
+""" Модели """
 
 import os
 import random
@@ -14,73 +11,17 @@ from pymongo import MongoClient, DESCENDING
 from pymongo.errors import DuplicateKeyError
 
 
-def md5(value):
-    """ Generates md5-hash for given string or bytes
-    :param value: Value to be hashed
-    :return: md5-hash
-    """
-    if not isinstance(value, bytes):
-        value = str(value).encode()
-    return hashlib.md5(value).hexdigest()
-
-
-class Credentials(object):
-    """ Model for convinient use of credentials """
-    def __init__(self):
-        self.email = None
-        self.phone = None
-        self.password = None
-        self.token = None
-        self.vk_id = None
-
-    def set_email(self, email: str) -> None:
-        """ Adds an email into Credentials object
-        :param email: Email used as a login
-        """
-        self.email = email
-
-    def set_phone(self, phone: str) -> None:
-        """ Adds a phone into Credentisals object
-        :param phone: Phone number used as a login
-        """
-        self.phone = phone
-
-    def set_password(self, password: str) -> None:
-        """ Adds a password into Credentials object
-        :param password: Password for specified login (email or phone)
-        :return:
-        """
-        self.password = password
-
-    def set_token(self, token: str) -> None:
-        """ Adds a token into Credentials object
-        :param token: Authentication token (secret)
-        """
-        self.token = token
-
-    def set_vk_id(self, vk_id: Union[str, int]) -> None:
-        """ Adds a token into Credentials object
-        :param vk_id:
-        """
-        self.vk_id = vk_id
-
-
 class AuthenticationService(object):
-    """ Authentication service itself
-
-        Does all work to confirm or deny authority of user by given credentials.
-        Also, handles operations in order to create/remove credentials,
-        set verification codes for email/phone or change existing password.
-    """
+    """ Модель сервиса аутентификации """
 
     def __init__(self):
         self.client = MongoClient('mongo', 27017)
         self.credentials = self.client.db.credentials
 
-    def get_credentials_record(self, credentials: Credentials) -> Optional[dict]:
-        """ Returns a record from the storage if match found, otherwise None
-        :param credentials: Credentials object
-        :return: Dictionary of data stored in storage
+    def get_credentials_record(self, credentials: 'Credentials') -> Optional[dict]:
+        """ Возвращает запись из БД, соответствующую переданным учетным данным, если такие найдены
+        :param credentials:
+        :return:
         """
         match = None
         if credentials.vk_id:
@@ -93,29 +34,10 @@ class AuthenticationService(object):
             match = self.credentials.find_one({"phone": credentials.phone})
         return match
 
-    def insert_inc(self, doc: dict) -> int:
-        """
-
-        :param doc:
+    def register(self, credentials: 'Credentials') -> str:
+        """ Начинает процедуру регистрации, создает пустую запись, генерирует и возвращает код верификации
+        :param credentials:
         :return:
-        """
-        while True:
-            cursor = self.credentials.find({}, {"_id": 1}).sort([("_id", DESCENDING)]).limit(1)
-            try:
-                doc["_id"] = next(cursor)["_id"] + 1
-            except StopIteration:
-                doc["_id"] = 1
-            try:
-                self.credentials.insert_one(doc)
-                break
-            except DuplicateKeyError:
-                pass
-        return doc["_id"]
-
-    def register(self, credentials: Credentials) -> str:
-        """ Initiates registration process: creates credentials record, generates verification code
-        :param credentials: Credentials object
-        :return: Verification code
         """
         match = self.get_credentials_record(credentials)
         if match:
@@ -129,7 +51,7 @@ class AuthenticationService(object):
             "email": None,
             "phone": None,
             "vk_id": credentials.vk_id,
-            "token": self.generate_new_token(),
+            "token": CodesGenerator.gen_token(),
             "password": md5(credentials.password),
             "email_tmp": credentials.email,
             "phone_tmp": credentials.phone,
@@ -137,40 +59,55 @@ class AuthenticationService(object):
             "phone_verified": False,
             "verification_code_failed_attempts": 0,
             "last_verification_attempt": None,
-            "verification_code": self.gen_pincode()
+            "verification_code": CodesGenerator.gen_pincode()
         }
-        self.insert_inc(doc)
+        self._insert_inc(doc)
         return doc["verification_code"]
 
-    def authentificate(self, credentials: Credentials) -> Tuple[int, str]:
-        """
-        Does an authentification by given credentials
-        @param credentials: Credentials object
-        @raise IncorrectLogin:
-        @raise IncorrectPassword:
+    def authenticate(self, credentials: 'Credentials') -> Tuple[int, str]:
+        """ Выполняет попытку аутентификации пользователя на основе предоставленных данных
+        @param credentials:
         @return:
         """
         match = self.get_credentials_record(credentials)
-
         if not match:
             raise IncorrectLogin()
         elif match and (credentials.email or credentials.phone) and match["password"] != md5(credentials.password):
             raise IncorrectPassword()
         else:
             if credentials.email or credentials.phone:
-                token = self.generate_new_token()
+                token = CodesGenerator.gen_token()
                 self.credentials.update_one(match, {"$set": {"token": token}})
             else:
                 token = match["token"]
             return match["_id"], token
 
-    def recover_password(self, credentials: Credentials) -> str:
+    def authenticate_vk(self, credentials: 'Credentials', vk_data: str, sig: str):
+        """ Выполняет аутентификацию на основе Вконтакте API
+        :param credentials:
+        :param vk_data: Данные Вк для проверки подписи (Сконкатенированная строка)
+        :param sig: Подпись
+        :return:
         """
-        Changes password of the account
-        @param credentials: Credentials object
+        if not md5(vk_data.replace("&", "") + os.environ.get("VK_APP_SECRET_KEY")) == sig:
+            raise IncorrectOAuthSignature()
+
+        match = self.get_credentials_record(credentials)
+
+        if match:
+            token = CodesGenerator.gen_token()
+            self.credentials.update_one(match, {"$set": {"token": token, "vk_id": credentials.vk_id}})
+        else:
+            self.register(credentials)
+            match = self.get_credentials_record(credentials)
+        return match["_id"], match["token"]
+
+    def recover_password(self, credentials: 'Credentials') -> str:
+        """ Меняет пароль пользователя на новый и возвращает его с указанием по какому каналу его можно выслать
+        @param credentials:
         @return:
         """
-        new_password = self.gen_password()
+        new_password = CodesGenerator.gen_password()
         match = self.get_credentials_record(credentials)
         if match and match["email"] and match["email_verified"]:
             self.credentials.update_one(match, {"$set": {"password": md5(new_password)}})
@@ -181,16 +118,16 @@ class AuthenticationService(object):
         else:
             raise IncorrectLogin()
 
-    def set_new_password(self, credentials: Credentials, old_pass: str, new_pass: str, new_pass2: str) -> bool:
-        """
-        Меняет пароль аккаунта на новый
-        @param credentials: Credentials object
+    def set_new_password(self, credentials: 'Credentials', old_pass: str, new_pass: str, new_pass2: str) -> bool:
+        """ Меняет пароль аккаунта на новый (При смене после авторизации, из профиля) и
+        возвращает его с указанием канала, по которому пользователю можно сообщить о смене
+        @param credentials:
         @param old_pass: Текущий пароль
         @param new_pass: Новый пароль
         @param new_pass2: Подтверждение нового пароля
-        @return: Результат смены пароля
+        @return:
         """
-        auth = self.authentificate(credentials)
+        auth = self.authenticate(credentials)
         if auth:
             match = self.get_credentials_record(credentials)
             if match:
@@ -206,8 +143,13 @@ class AuthenticationService(object):
                     self.credentials.update_one(match, {"$set": {"password": md5(new_pass)}})
                     return "phone", new_pass
 
-    def set_new_email(self, credentials: Credentials, new_email):
-        auth = self.authentificate(credentials)
+    def set_new_email(self, credentials: 'Credentials', new_email: str) -> str:
+        """ Начинает процесс смены email адреса, ставит его в tmp-состояние и возвращает код верификации
+        :param credentials:
+        :param new_email:
+        :return:
+        """
+        auth = self.authenticate(credentials)
         if auth:
             match = self.get_credentials_record(credentials)
             if match:
@@ -215,13 +157,18 @@ class AuthenticationService(object):
                     "email_tmp": new_email,
                     "verification_code_failed_attempts": 0,
                     "last_verification_attempt": None,
-                    "verification_code": self.gen_pincode()
+                    "verification_code": CodesGenerator.gen_pincode()
                 }
                 self.credentials.update_one(match, {"$set": change})
                 return change["verification_code"]
 
-    def set_new_phone(self, credentials: Credentials, new_phone):
-        auth = self.authentificate(credentials)
+    def set_new_phone(self, credentials: 'Credentials', new_phone: str) -> str:
+        """ Начинает процесс смены номера телефона, ставит его в tmp-состояние и возвращает код верификации
+        :param credentials:
+        :param new_phone:
+        :return:
+        """
+        auth = self.authenticate(credentials)
         if auth:
             match = self.get_credentials_record(credentials)
             if match:
@@ -229,40 +176,25 @@ class AuthenticationService(object):
                     "phone_tmp": new_phone,
                     "verification_code_failed_attempts": 0,
                     "last_verification_attempt": None,
-                    "verification_code": self.gen_pincode()
+                    "verification_code": CodesGenerator.gen_pincode()
                 }
                 self.credentials.update_one(match, {"$set": change})
                 return change["verification_code"]
 
-    @classmethod
-    def gen_password(cls):
-        """ Дефолтная реализация генерации пароля """
-        digits = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-        characters = ["a", "b", "d", "e", "f", "g", "h", "j", "k", "m", "n",
-                      "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z" ]
-        digit1 = str(random.choice(digits))
-        digit2 = str(random.choice(digits))
-        upper_char = random.choice(characters).upper()
-        random.shuffle(characters)
-        random_start = random.choice([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16])
-        random_end = random_start + 5
-        chars = characters[random_start:random_end]
-        l = [digit1, digit2, upper_char] + chars
-        random.shuffle(l)
-        return "".join(l)
+    def verify_email(self, credentials: 'Credentials', verification_code: str) -> bool:
+        """ Подтверждает регистрационный данные (email) на основе кода верификации
+        @param credentials:
+        @param verification_code:
+        """
+        return self._verify(credentials, verification_code, "email")
 
-    @classmethod
-    def gen_pincode(cls):
-        """ Дефолтная реализация генерации пин-кода """
-        return "%d%d%d%d" % (
-            random.choice(range(9)), random.choice(range(9)), random.choice(range(9)), random.choice(range(9))
-        )
-
-    @classmethod
-    def generate_new_token(cls):
-        """ Generates a new auth-token """
-        return md5("%s%d" % (str(datetime.now()), random.choice(range(100))))
-
+    def verify_phone(self, credentials: 'Credentials', verification_code: str) -> bool:
+        """ Подтверждает номер телефона
+        @param credentials:
+        @param verification_code:
+        """
+        return self._verify(credentials, verification_code, "phone")
+    
     def check_phone_registration(self, phone: str) -> bool:
         """ Метод проверки регистрации по номеру телефона
         :param phone: Номер телефона
@@ -277,7 +209,7 @@ class AuthenticationService(object):
         """
         return self.credentials.find_one({"email": email, "email_verified": True}) is not None
 
-    def check_verification_code(self, target_user: dict, verification_code: str) -> bool:
+    def _check_verification_code(self, target_user: dict, verification_code: str) -> bool:
         """ Проверяет код верификации
         :param target_user:
         :param verification_code:
@@ -300,11 +232,17 @@ class AuthenticationService(object):
                 raise IncorrectVerificationCodeFatal()
         return True
 
-    def _verify(self, credentials: Credentials, verification_code: str, type_name: str):
+    def _verify(self, credentials: 'Credentials', verification_code: str, type_name: str) -> bool:
+        """ Верифицирует либо email либо phone в зависимости от type_name
+        :param credentials:
+        :param verification_code:
+        :param type_name:
+        :return:
+        """
         target_user = self.get_credentials_record(credentials)
         if target_user and (target_user["email_verified"] or target_user["phone_verified"]):
-            self.authentificate(credentials)
-            target_user = self.get_credentials_record(credentials) # because authentificate() changes token
+            self.authenticate(credentials)
+            target_user = self.get_credentials_record(credentials) # because authenticate() changes token
         else:
             target_user = self.credentials.find_one({
                 "%s_tmp" % type_name: object.__getattribute__(credentials, type_name)
@@ -316,7 +254,7 @@ class AuthenticationService(object):
                         target_user["last_verification_attempt"] < datetime.now() - timedelta(seconds=10*60):
             raise VerificationTimeExceeded()
 
-        if self.check_verification_code(target_user, verification_code):
+        if self._check_verification_code(target_user, verification_code):
             self.credentials.update_one(
                 target_user, {"$set": {
                     "%s" % type_name: target_user["%s_tmp" % type_name],
@@ -328,37 +266,73 @@ class AuthenticationService(object):
             )
             return True
 
-    def verify_email(self, credentials: Credentials, verification_code: str):
-        """ Подтверждает регистрационный данные (email) на основе кода верификации
-        @param credentials:
-        @param verification_code:
-        """
-        return self._verify(credentials, verification_code, "email")
-
-    def verify_phone(self, credentials: Credentials, verification_code: str) -> bool:
-        """ Подтверждает номер телефона
-        @param credentials:
-        @param verification_code:
-        """
-        return self._verify(credentials, verification_code, "phone")
-
-    def vk_auth(self, credentials: Credentials, vk_data: str, sig: str):
-        """ Выполняет аутентификацию на основе Вконтакте API
-        :param credentials:
-        :param vk_data: Данные Вк для проверки подписи (Сконкатенированная строка)
-        :param sig: Подпись
+    def _insert_inc(self, doc: dict) -> int:
+        """ Вставляет новый документ в коллекцию учетных данных, генерируя инкрементный ключ - привет mongodb...
+        :param doc: Документ для вставки в коллекцию (без указания _id)
         :return:
         """
-        if not md5(vk_data.replace("&", "") + os.environ.get("VK_APP_SECRET_KEY")) == sig:
-            raise IncorrectOAuthSignature()
+        while True:
+            cursor = self.credentials.find({}, {"_id": 1}).sort([("_id", DESCENDING)]).limit(1)
+            try:
+                doc["_id"] = next(cursor)["_id"] + 1
+            except StopIteration:
+                doc["_id"] = 1
+            try:
+                self.credentials.insert_one(doc)
+                break
+            except DuplicateKeyError:
+                pass
+        return doc["_id"]
 
-        match = self.get_credentials_record(credentials)
 
-        if match:
-            token = self.generate_new_token()
-            self.credentials.update_one(match, {"$set": {"token": token, "vk_id": credentials.vk_id}})
-        else:
-            self.register(credentials)
-            match = self.get_credentials_record(credentials)
+class Credentials(object):
+    """ Модель для хранения учетных данных """
+    def __init__(self):
+        self.email = None
+        self.phone = None
+        self.password = None
+        self.token = None
+        self.vk_id = None
 
-        return match["_id"], match["token"]
+
+class CodesGenerator(object):
+    """ Класс для генерации паролей, пин-кодов и токенов """
+    @classmethod
+    def gen_password(cls) -> str:
+        """ Дефолтная реализация генерации пароля """
+        digits = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+        characters = ["a", "b", "d", "e", "f", "g", "h", "j", "k", "m", "n",
+                      "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z" ]
+        digit1 = str(random.choice(digits))
+        digit2 = str(random.choice(digits))
+        upper_char = random.choice(characters).upper()
+        random.shuffle(characters)
+        random_start = random.choice([1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16])
+        random_end = random_start + 5
+        chars = characters[random_start:random_end]
+        l = [digit1, digit2, upper_char] + chars
+        random.shuffle(l)
+        return "".join(l)
+
+    @classmethod
+    def gen_pincode(cls) -> str:
+        """ Дефолтная реализация генерации пин-кода """
+        return "%d%d%d%d" % (
+            random.choice(range(9)), random.choice(range(9)),
+            random.choice(range(9)), random.choice(range(9))
+        )
+
+    @classmethod
+    def gen_token(cls) -> str:
+        """ Дефолтная реализации генерации токена """
+        return md5("%s%d" % (str(datetime.now()), random.choice(range(100))))
+
+
+def md5(value: Union[str, bytes]) -> str:
+    """ MD5
+    :param value:
+    :return: md5-хеш
+    """
+    if not isinstance(value, bytes):
+        value = str(value).encode()
+    return hashlib.md5(value).hexdigest()

@@ -1,5 +1,5 @@
 
-""" Exceptions """
+""" Исключения """
 
 
 class NoDataForAuth(Exception):
@@ -8,47 +8,50 @@ class NoDataForAuth(Exception):
 
 
 class IncorrectToken(Exception):
-    """ Недостаточно данных для аутентификации """
+    """ Некорректный токен """
     code = 2
 
 
 class IncorrectPassword(Exception):
-    """ Недостаточно данных для аутентификации """
+    """ Некорректный пароль """
     code = 3
 
 
 class IncorrectLogin(Exception):
-    """ Недостаточно данных для аутентификации """
+    """ Некорректный логин """
     code = 4
 
 
 class NewPasswordsMismatch(Exception):
-    """ Недостаточно данных для аутентификации """
+    """ Пароли не совпадают """
     code = 5
 
 
 class VerificationTimeExceeded(Exception):
-    """ Недостаточно данных для аутентификации """
+    """ Тайм-аут ожидания подтверждения email'a или номера телефона """
     code = 6
 
 
 class IncorrectVerificationCode(Exception):
-    """ Недостаточно данных для аутентификации """
+    """ Некорректный код верификации """
     code = 7
 
 
 class IncorrectVerificationCodeFatal(Exception):
-    """ Недостаточно данных для аутентификации """
+    """ Некорректный код верификации """
     code = 8
 
 
 class IncorrectOAuthSignature(Exception):
+    """ Некорректная подпись OAuth """
     code = 9
 
 
 class NoSuchUser(Exception):
+    """ Пользователь не найден """
     code = 10
 
 
 class AlreadyRegistred(Exception):
+    """ Уже зарегистрирован в системе """
     code = 11

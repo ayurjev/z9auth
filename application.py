@@ -1,9 +1,9 @@
 
-"""
-    hello
+""" Микро-сервис для аутентификации
+
 """
 
-from envi import Request, Application as EnviApplication
+from envi import Application as EnviApplication
 from controllers import AuthController
 
 application = EnviApplication()
