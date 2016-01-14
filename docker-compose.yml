@@ -1,0 +1,6 @@
+z9auth:
+  image: z9auth
+  links:
+   - mongo
+mongo:
+  image: mongo
