@@ -37,9 +37,9 @@ class RegistrationCase(unittest.TestCase):
         self.assertTrue(self.service.verify_email(credentials, verification_code))
 
         auth_result = self.service.authenticate(credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
     def test_init_registration_process_with_phone(self):
         credentials = Credentials()
@@ -60,9 +60,9 @@ class RegistrationCase(unittest.TestCase):
         self.assertTrue(self.service.verify_phone(credentials, verification_code))
 
         auth_result = self.service.authenticate(credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
     def test_fail_email_verification_and_delete_account(self):
         credentials = Credentials()
@@ -101,9 +101,9 @@ class RegistrationCase(unittest.TestCase):
         self.assertTrue(self.service.verify_email(credentials, verification_code))
 
         auth_result = self.service.authenticate(credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
     def test_phone_verification_with_third_attempt(self):
         credentials = Credentials()
@@ -116,9 +116,9 @@ class RegistrationCase(unittest.TestCase):
         self.assertTrue(self.service.verify_phone(credentials, verification_code))
 
         auth_result = self.service.authenticate(credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
 
 class AuthentificationCase(unittest.TestCase):
@@ -144,48 +144,48 @@ class AuthentificationCase(unittest.TestCase):
 
     def test_successfull_auth_with_login_and_password(self):
         auth_result = self.service.authenticate(self.email_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
         auth_result = self.service.authenticate(self.phone_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(2, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(2, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
     def test_wrong_login_and_then_success(self):
         self.email_credentials.email = "bla@bla.ru"
         self.assertRaises(IncorrectLogin, lambda: self.service.authenticate(self.email_credentials))
         self.email_credentials.email = "andrey.yurjev@test.ru"
         auth_result = self.service.authenticate(self.email_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
         self.phone_credentials.phone = "911"
         self.assertRaises(IncorrectLogin, lambda: self.service.authenticate(self.phone_credentials))
         self.phone_credentials.phone = "+79263435016"
         auth_result = self.service.authenticate(self.phone_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(2, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(2, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
     def test_wrong_password_and_then_success(self):
         self.email_credentials.password = "secret"
         self.assertRaises(IncorrectPassword, lambda: self.service.authenticate(self.email_credentials))
         self.email_credentials.password = "qwerty123"
         auth_result = self.service.authenticate(self.email_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
         self.phone_credentials.password = "secret"
         self.assertRaises(IncorrectPassword, lambda: self.service.authenticate(self.phone_credentials))
         self.phone_credentials.password = "qwerty123"
         auth_result = self.service.authenticate(self.phone_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(2, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(2, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
     def test_password_recovery(self):
         self.email_credentials.password = "secret"
@@ -198,9 +198,9 @@ class AuthentificationCase(unittest.TestCase):
 
         self.email_credentials.password = recover_result["password_recovery"]["send_password"]
         auth_result = self.service.authenticate(self.email_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
         self.phone_credentials.password = "secret"
         self.assertRaises(IncorrectPassword, lambda: self.service.authenticate(self.phone_credentials))
@@ -212,28 +212,28 @@ class AuthentificationCase(unittest.TestCase):
 
         self.phone_credentials.password = recover_result["password_recovery"]["send_password"]
         auth_result = self.service.authenticate(self.phone_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(2, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(2, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
     def test_auth_by_token(self):
         auth_result = self.service.authenticate(self.email_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(32, len(auth_result[1]))
-        token = auth_result[1]
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
+        token = auth_result["authentication"]["token"]
 
         new_credentials = Credentials()
         new_credentials.token = token
         auth_result = self.service.authenticate(new_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(token, token)
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
         # При авторизации по токену, токен не меняется:
         auth_result = self.service.authenticate(new_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(token, token)
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(token, auth_result["authentication"]["token"])
 
 
 class ChangeCredentialsCase(unittest.TestCase):
@@ -247,7 +247,7 @@ class ChangeCredentialsCase(unittest.TestCase):
         verification_code = register_result["verification"]["send_code"]
         self.service.verify_email(self.email_credentials, verification_code)
         auth_result = self.service.authenticate(self.email_credentials)
-        self.email_account_token = auth_result[1]
+        self.email_account_token = auth_result["authentication"]["token"]
 
         self.phone_credentials = Credentials()
         self.phone_credentials.phone = "+79263435016"
@@ -256,7 +256,7 @@ class ChangeCredentialsCase(unittest.TestCase):
         verification_code = register_result["verification"]["send_code"]
         self.service.verify_phone(self.phone_credentials, verification_code)
         auth_result = self.service.authenticate(self.phone_credentials)
-        self.phone_account_token = auth_result[1]
+        self.phone_account_token = auth_result["authentication"]["token"]
 
     def tearDown(self):
         self.service.credentials.delete_many({})
@@ -351,8 +351,9 @@ class ChangeCredentialsCase(unittest.TestCase):
         new_phone_credentials.phone = "+79164143212"
         new_phone_credentials.password = self.email_credentials.password
         auth_result = self.service.authenticate(new_phone_credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
 
 class VkAuthCase(unittest.TestCase):
@@ -371,17 +372,17 @@ class VkAuthCase(unittest.TestCase):
         credentials = Credentials()
         credentials.vk_id = vk_id
         result = self.service.authenticate_vk(credentials, vk_concated_string, sig)
-        self.assertTrue(isinstance(result, tuple))
-        self.assertEqual(1, result[0])
-        self.assertEqual(32, len(result[1]))
-        token = result[1]
+        self.assertTrue(isinstance(result, dict))
+        self.assertEqual(1, result["authentication"]["id"])
+        self.assertEqual(32, len(result["authentication"]["token"]))
+        token = result["authentication"]["token"]
 
         # Используя токен, полученный при регистрации через вк авторизуемся стандартным путем:
         credentials.token = token
         auth_result = self.service.authenticate(credentials)
-        self.assertTrue(isinstance(auth_result, tuple))
-        self.assertEqual(1, auth_result[0])
-        self.assertEqual(token, auth_result[1])
+        self.assertTrue(isinstance(result, dict))
+        self.assertEqual(1, result["authentication"]["id"])
+        self.assertEqual(32, len(result["authentication"]["token"]))
 
     def test_vk_auth_after_normal_registartion(self):
         os.environ["VK_APP_SECRET_KEY"] = "12345"
@@ -397,26 +398,26 @@ class VkAuthCase(unittest.TestCase):
         verification_code = register_result["verification"]["send_code"]
         self.service.verify_phone(credentials, verification_code)
         auth_result = self.service.authenticate(credentials)
-        self.assertEqual(1, auth_result[0])
-        token = auth_result[1]
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        token = auth_result["authentication"]["token"]
 
         # Используем токен и укажем vk_id:
         new_credentials = Credentials()
         new_credentials.token = token
         new_credentials.vk_id = vk_id
         vk_auth_result = self.service.authenticate_vk(new_credentials, vk_concated_string, sig)
-        self.assertTrue(isinstance(vk_auth_result, tuple))
-        self.assertEqual(1, vk_auth_result[0])
-        self.assertEqual(token, vk_auth_result[1])
+        self.assertTrue(isinstance(vk_auth_result, dict))
+        self.assertEqual(1, vk_auth_result["authentication"]["id"])
+        self.assertEqual(32, len(vk_auth_result["authentication"]["token"]))
 
         # Теперь можно и без токена:
         new_credentials = Credentials()
         new_credentials.vk_id = vk_id
         vk_auth_result = self.service.authenticate_vk(new_credentials, vk_concated_string, sig)
-        self.assertTrue(isinstance(vk_auth_result, tuple))
-        self.assertEqual(1, vk_auth_result[0])
-        self.assertEqual(32, len(vk_auth_result[1]))
-        self.assertNotEqual(token, vk_auth_result[1])
+        self.assertTrue(isinstance(vk_auth_result, dict))
+        self.assertEqual(1, vk_auth_result["authentication"]["id"])
+        self.assertEqual(32, len(vk_auth_result["authentication"]["token"]))
+        self.assertNotEqual(token, vk_auth_result["authentication"]["token"])
 
     def test_vk_auth_fail(self):
         os.environ["VK_APP_SECRET_KEY"] = "12345"
@@ -480,10 +481,9 @@ class ApiTestCase(unittest.TestCase):
         self.app.get("/v1/verify_email/", {"email": "andrey.yurjev@mail.ru", "verification_code": verification_code})
         response = self.app.get("/v1/authenticate/", {"email": "andrey.yurjev@mail.ru", "password": "12345"})
         response = json.loads(response.body.decode())
-        self.assertTrue(isinstance(response, list))
-        self.assertTrue(len(response), 2)
-        self.assertEqual(1, response[0])
-        self.assertEqual(32, len(response[1]))
+        self.assertTrue(isinstance(response, dict))
+        self.assertEqual(1, response["authentication"]["id"])
+        self.assertEqual(32, len(response["authentication"]["token"]))
 
     def test_recover_password(self):
         response = self.app.get("/v1/register/", {"email": "andrey.yurjev@mail.ru", "password": "12345"})
@@ -507,11 +507,10 @@ class ApiTestCase(unittest.TestCase):
         self.app.get("/v1/verify_email/", {"email": "andrey.yurjev@mail.ru", "verification_code": verification_code})
         response = self.app.get("/v1/authenticate/", {"email": "andrey.yurjev@mail.ru", "password": "12345"})
         response = json.loads(response.body.decode())
-        token = response[1]
-        self.assertTrue(isinstance(response, list))
-        self.assertTrue(len(response), 2)
-        self.assertEqual(1, response[0])
-        self.assertEqual(32, len(response[1]))
+        token = response["authentication"]["token"]
+        self.assertTrue(isinstance(response, dict))
+        self.assertEqual(1, response["authentication"]["id"])
+        self.assertEqual(32, len(response["authentication"]["token"]))
 
         response = self.app.get(
             "/v1/set_new_password/",
@@ -534,11 +533,10 @@ class ApiTestCase(unittest.TestCase):
         self.app.get("/v1/verify_email/", {"email": "andrey.yurjev@mail.ru", "verification_code": verification_code})
         response = self.app.get("/v1/authenticate/", {"email": "andrey.yurjev@mail.ru", "password": "12345"})
         response = json.loads(response.body.decode())
-        token = response[1]
-        self.assertTrue(isinstance(response, list))
-        self.assertTrue(len(response), 2)
-        self.assertEqual(1, response[0])
-        self.assertEqual(32, len(response[1]))
+        token = response["authentication"]["token"]
+        self.assertTrue(isinstance(response, dict))
+        self.assertEqual(1, response["authentication"]["id"])
+        self.assertEqual(32, len(response["authentication"]["token"]))
 
         response = self.app.get("/v1/set_new_email/", {"token": token, "new_email": "blabla@bla.com"})
         response = json.loads(response.body.decode())
@@ -555,11 +553,10 @@ class ApiTestCase(unittest.TestCase):
         self.app.get("/v1/verify_email/", {"email": "andrey.yurjev@mail.ru", "verification_code": verification_code})
         response = self.app.get("/v1/authenticate/", {"email": "andrey.yurjev@mail.ru", "password": "12345"})
         response = json.loads(response.body.decode())
-        token = response[1]
-        self.assertTrue(isinstance(response, list))
-        self.assertTrue(len(response), 2)
-        self.assertEqual(1, response[0])
-        self.assertEqual(32, len(response[1]))
+        token = response["authentication"]["token"]
+        self.assertTrue(isinstance(response, dict))
+        self.assertEqual(1, response["authentication"]["id"])
+        self.assertEqual(32, len(response["authentication"]["token"]))
 
         response = self.app.get("/v1/set_new_phone/", {"token": token, "new_phone": "911"})
         response = json.loads(response.body.decode())
@@ -580,10 +577,9 @@ class ApiTestCase(unittest.TestCase):
             "/v1/authenticate_vk/", {"vk_id": "42", "vk_concated_string": vk_concated_string, "signature": sig}
         )
         response = json.loads(response.body.decode())
-        self.assertTrue(isinstance(response, list))
-        self.assertTrue(len(response), 2)
-        self.assertEqual(1, response[0])
-        self.assertEqual(32, len(response[1]))
+        self.assertTrue(isinstance(response, dict))
+        self.assertEqual(1, response["authentication"]["id"])
+        self.assertEqual(32, len(response["authentication"]["token"]))
 
     def test_exception_format(self):
         self.app.get("/v1/register/", {"email": "a@b.ru", "password": "12345"})

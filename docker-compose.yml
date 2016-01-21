@@ -1,5 +1,5 @@
 z9auth:
-  image: z9auth
+  build: .
   links:
    - mongo
 mongo:

@@ -20,7 +20,7 @@ def error_format(func):
         try:
             return func(*args, **kwargs)
         except BaseAuthException as e:
-            return json.dumps({"error": {"code": e.code}})
+            return json.dumps({"error": {"code": e.code, "message": str(e)}})
     return wrapper
 
 

@@ -54,7 +54,6 @@ class AuthenticationService(object):
             }
         }
 
-
     def authenticate(self, credentials: 'Credentials') -> Tuple[int, str]:
         """ Выполняет попытку аутентификации пользователя на основе предоставленных данных
         @param credentials:
@@ -71,7 +70,7 @@ class AuthenticationService(object):
                 self.credentials.update_one(match, {"$set": {"token": token}})
             else:
                 token = match["token"]
-            return match["_id"], token
+            return {"authentication": {"id": match["_id"], "token": token}}
 
     def authenticate_vk(self, credentials: 'Credentials', vk_data: str, sig: str):
         """ Выполняет аутентификацию на основе Вконтакте API
@@ -82,16 +81,14 @@ class AuthenticationService(object):
         """
         if not md5(vk_data.replace("&", "") + os.environ.get("VK_APP_SECRET_KEY")) == sig:
             raise IncorrectOAuthSignature()
-
         match = self._get_credentials_record(credentials)
-
         if match:
             token = CodesGenerator.gen_token()
             self.credentials.update_one(match, {"$set": {"token": token, "vk_id": credentials.vk_id}})
         else:
             self.register(credentials)
             match = self._get_credentials_record(credentials)
-        return match["_id"], match["token"]
+        return {"authentication": {"id": match["_id"], "token": match["token"]}}
 
     def recover_password(self, credentials: 'Credentials') -> str:
         """ Меняет пароль пользователя на новый и возвращает его с указанием по какому каналу его можно выслать
