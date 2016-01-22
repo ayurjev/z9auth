@@ -39,8 +39,6 @@ class AuthController(Controller):
         credentials.token = request.get("token", None)
         credentials.password = request.get("password", None)
         credentials.vk_id = request.get("vk_id", None)
-
-        print(credentials)
         return credentials
 
     @classmethod

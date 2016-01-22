@@ -270,7 +270,7 @@ class AuthenticationService(object):
                     "verification_code_failed_attempts": 0
                 }}
             )
-            return True
+            return {"verification": {"result": True}}
 
     def _insert_inc(self, doc: dict) -> int:
         """ Вставляет новый документ в коллекцию учетных данных, генерируя инкрементный ключ - привет mongodb...
