@@ -29,3 +29,7 @@ RUN echo '#!/bin/bash' >> /usr/local/bin/runtests && \
 
 WORKDIR /var/www/
 COPY . /var/www/
+
+EXPOSE 80
+ENTRYPOINT ["uwsgi"]
+CMD ["--http", ":80", "--wsgi-file", "application.py"]

@@ -1,6 +1,7 @@
 """ Модели """
 
 import os
+import re
 import random
 import hashlib
 from datetime import datetime, timedelta
@@ -299,6 +300,9 @@ class Credentials(object):
         self.token = None
         self.vk_id = None
 
+    def __str__(self):
+        return "%s  %s  %s  %s  %s" % (self.email, self.phone, self.token, self.vk_id, self.password)
+
 
 class CodesGenerator(object):
     """ Класс для генерации паролей, пин-кодов и токенов """
@@ -331,6 +335,16 @@ class CodesGenerator(object):
     def gen_token(cls) -> str:
         """ Дефолтная реализации генерации токена """
         return md5("%s%d" % (str(datetime.now()), random.choice(range(100))))
+
+
+def normalize_phone_number(number: str) -> str:
+    """ Приводит номер к правильному строковому представлению
+    :param number: Номер телефона
+    """
+    digits = re.sub("[^\d]", "", str(number))
+    if len(digits) < 10:
+        raise InvalidPhoneNumber(number)
+    return "+7%s" % (digits[1 if digits[0] in ["7", "8"] else 0:11])
 
 
 def md5(value: Union[str, bytes]) -> str:

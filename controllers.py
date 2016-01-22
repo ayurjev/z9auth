@@ -2,7 +2,7 @@
 
 import json
 from envi import Controller, Request
-from models import Credentials, AuthenticationService
+from models import Credentials, AuthenticationService, normalize_phone_number
 from exceptions import BaseAuthException
 
 service = AuthenticationService()
@@ -18,9 +18,9 @@ def error_format(func):
         :param kwargs:
         """
         try:
-            return func(*args, **kwargs)
+            return json.dumps(func(*args, **kwargs))
         except BaseAuthException as e:
-            return json.dumps({"error": {"code": e.code, "message": str(e)}})
+            return json.dumps({"error": {"code": e.code, "message": e.msg}})
     return wrapper
 
 
@@ -35,10 +35,12 @@ class AuthController(Controller):
         """
         credentials = Credentials()
         credentials.email = request.get("email", None)
-        credentials.phone = request.get("phone", None)
+        credentials.phone = normalize_phone_number(request.get("phone")) if request.get("phone", False) else None
         credentials.token = request.get("token", None)
         credentials.password = request.get("password", None)
         credentials.vk_id = request.get("vk_id", None)
+
+        print(credentials)
         return credentials
 
     @classmethod
@@ -49,7 +51,7 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        return json.dumps(service.register(cls.build_credentials(request)))
+        return service.register(cls.build_credentials(request))
 
     @classmethod
     @error_format
@@ -59,7 +61,7 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        return json.dumps(service.authenticate(cls.build_credentials(request)))
+        return service.authenticate(cls.build_credentials(request))
 
     @classmethod
     @error_format
@@ -70,7 +72,7 @@ class AuthController(Controller):
         :return:
         """
         vk_data, sig = request.get("vk_concated_string"), request.get("signature")
-        return json.dumps(service.authenticate_vk(cls.build_credentials(request), vk_data, sig))
+        return service.authenticate_vk(cls.build_credentials(request), vk_data, sig)
 
     @classmethod
     @error_format
@@ -80,7 +82,7 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        return json.dumps(service.recover_password(cls.build_credentials(request)))
+        return service.recover_password(cls.build_credentials(request))
 
     @classmethod
     @error_format
@@ -90,11 +92,9 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        return json.dumps(
-            service.set_new_password(
-                cls.build_credentials(request), request.get("current_password"),
-                request.get("new_password"), request.get("new_password")
-            )
+        return service.set_new_password(
+            cls.build_credentials(request), request.get("current_password"),
+            request.get("new_password"), request.get("new_password")
         )
 
     @classmethod
@@ -105,7 +105,7 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        return json.dumps(service.set_new_email(cls.build_credentials(request), request.get("new_email")))
+        return service.set_new_email(cls.build_credentials(request), request.get("new_email"))
 
     @classmethod
     @error_format
@@ -115,7 +115,7 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        return json.dumps(service.set_new_phone(cls.build_credentials(request), request.get("new_phone")))
+        return service.set_new_phone(cls.build_credentials(request), request.get("new_phone"))
 
     @classmethod
     @error_format
@@ -125,7 +125,7 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        return json.dumps(service.verify_email(cls.build_credentials(request), request.get("verification_code")))
+        return service.verify_email(cls.build_credentials(request), request.get("verification_code"))
 
     @classmethod
     @error_format
@@ -135,4 +135,4 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        return json.dumps(service.verify_phone(cls.build_credentials(request), request.get("verification_code")))
+        return service.verify_phone(cls.build_credentials(request), request.get("verification_code"))
