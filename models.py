@@ -19,6 +19,24 @@ class AuthenticationService(object):
         self.client = MongoClient('mongo', 27017)
         self.credentials = self.client.db.credentials
 
+    def get_credentials(self, uid: int):
+        """ Возвращает учетные данные по id
+        :param uid:
+        :return:
+        """
+        match = self.credentials.find_one({"_id": uid})
+        if not match:
+            raise NoSuchUser()
+        return {
+            "email": match.get("email"),
+            "email_tmp": match.get("email_tmp"),
+            "email_verified": match.get("email_verified"),
+            "phone": match.get("phone"),
+            "phone_tmp": match.get("phone_tmp"),
+            "phone_verified": match.get("phone_verified"),
+            "vk_id": match.get("vk_id")
+        }
+
     def register(self, credentials: 'Credentials') -> str:
         """ Начинает процедуру регистрации, создает пустую запись, генерирует и возвращает код верификации
         :param credentials:

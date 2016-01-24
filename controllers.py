@@ -113,7 +113,7 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        return service.set_new_phone(cls.build_credentials(request), request.get("new_phone"))
+        return service.set_new_phone(cls.build_credentials(request), normalize_phone_number(request.get("new_phone")))
 
     @classmethod
     @error_format
@@ -134,3 +134,13 @@ class AuthController(Controller):
         :return:
         """
         return service.verify_phone(cls.build_credentials(request), request.get("verification_code"))
+
+    @classmethod
+    @error_format
+    def get_credentials(cls, request: Request, **kwargs):
+        """ Возвращает учетные данные по id
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return service.get_credentials(request.get("uid"))
