@@ -92,7 +92,7 @@ class AuthController(Controller):
         """
         return service.set_new_password(
             cls.build_credentials(request), request.get("current_password"),
-            request.get("new_password"), request.get("new_password")
+            request.get("new_password"), request.get("new_password2")
         )
 
     @classmethod

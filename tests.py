@@ -120,6 +120,26 @@ class RegistrationCase(unittest.TestCase):
         self.assertEqual(1, auth_result["authentication"]["id"])
         self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
+    def test_second_attempt_to_start_registration_process(self):
+        credentials1 = Credentials()
+        credentials1.email = "andrey.yurjev@test.ru"
+        credentials1.password = "qwerty123"
+        register_result1 = self.service.register(credentials1)
+        verification_code1 = register_result1["verification"]["send_code"]
+
+        credentials2 = Credentials()
+        credentials2.email = "andrey.yurjev@test.ru"
+        credentials2.password = "qwertyqwertyqwerty"
+        register_result2 = self.service.register(credentials2)
+        verification_code2 = register_result2["verification"]["send_code"]
+
+        self.assertNotEqual(verification_code1, verification_code2)
+        self.assertTrue(self.service.verify_email(credentials2, verification_code2))
+        auth_result = self.service.authenticate(credentials2)
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
+
 
 class AuthentificationCase(unittest.TestCase):
 
@@ -558,12 +578,12 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(1, response["authentication"]["id"])
         self.assertEqual(32, len(response["authentication"]["token"]))
 
-        response = self.app.get("/v1/set_new_phone/", {"token": token, "new_phone": "911"})
+        response = self.app.get("/v1/set_new_phone/", {"token": token, "new_phone": "+79114235678"})
         response = json.loads(response.body.decode())
         self.assertTrue(isinstance(response, dict))
         self.assertTrue(isinstance(response["verification"], dict))
         self.assertEqual(response["verification"]["send_via"], "phone")
-        self.assertEqual(response["verification"]["send_address"], "911")
+        self.assertEqual(response["verification"]["send_address"], "+79114235678")
         self.assertEqual(4, len(response["verification"]["send_code"]))
 
     def test_authenticate_vk(self):

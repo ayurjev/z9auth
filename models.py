@@ -50,24 +50,39 @@ class AuthenticationService(object):
         if (credentials.email or credentials.phone) and not credentials.password:
             raise IncorrectPassword()
 
-        doc = {
-            "email": None,
-            "phone": None,
-            "vk_id": credentials.vk_id,
-            "token": CodesGenerator.gen_token(),
-            "password": md5(credentials.password),
-            "email_tmp": credentials.email,
-            "phone_tmp": credentials.phone,
-            "email_verified": False,
-            "phone_verified": False,
-            "verification_code_failed_attempts": 0,
-            "last_verification_attempt": None,
-            "verification_code": CodesGenerator.gen_pincode()
-        }
-        self._insert_inc(doc)
+        new_code = CodesGenerator.gen_pincode()
+
+        interrupted_registration_attempt_match = self.credentials.find_one(
+            {"email_tmp": credentials.email, "email_verified": False, "phone_verified": False} if credentials.email else
+            {"phone_tmp": credentials.phone, "email_verified": False, "phone_verified": False}
+        )
+        if interrupted_registration_attempt_match:
+            self.credentials.update_one(
+                {"_id": interrupted_registration_attempt_match["_id"]},
+                {"$set": {
+                    "verification_code": new_code,
+                    "password": md5(credentials.password)
+                }}
+            )
+        else:
+            doc = {
+                "email": None,
+                "phone": None,
+                "vk_id": credentials.vk_id,
+                "token": CodesGenerator.gen_token(),
+                "password": md5(credentials.password),
+                "email_tmp": credentials.email,
+                "phone_tmp": credentials.phone,
+                "email_verified": False,
+                "phone_verified": False,
+                "verification_code_failed_attempts": 0,
+                "last_verification_attempt": None,
+                "verification_code": new_code
+            }
+            self._insert_inc(doc)
         return {
             "verification": {
-                "send_code": doc["verification_code"],
+                "send_code": new_code,
                 "send_via": "email" if credentials.email else ("phone" if credentials.phone else None),
                 "send_address": credentials.email or credentials.phone
             }
@@ -107,7 +122,8 @@ class AuthenticationService(object):
         else:
             self.register(credentials)
             match = self._get_credentials_record(credentials)
-        return {"authentication": {"id": match["_id"], "token": match["token"]}}
+            token = match["token"]
+        return {"authentication": {"id": match["_id"], "token": token}}
 
     def recover_password(self, credentials: 'Credentials') -> str:
         """ Меняет пароль пользователя на новый и возвращает его с указанием по какому каналу его можно выслать
