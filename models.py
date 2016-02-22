@@ -48,7 +48,7 @@ class AuthenticationService(object):
         if not credentials.email and not credentials.phone and not credentials.vk_id:
             raise IncorrectLogin()
         if (credentials.email or credentials.phone) and not credentials.password:
-            raise IncorrectPassword()
+            credentials.password = CodesGenerator.gen_password()
 
         new_code = CodesGenerator.gen_pincode()
 
@@ -61,16 +61,17 @@ class AuthenticationService(object):
                 {"_id": interrupted_registration_attempt_match["_id"]},
                 {"$set": {
                     "verification_code": new_code,
-                    "password": md5(credentials.password)
+                    "password": credentials.password
                 }}
             )
+            uid = interrupted_registration_attempt_match["_id"]
         else:
             doc = {
                 "email": None,
                 "phone": None,
                 "vk_id": credentials.vk_id,
                 "token": CodesGenerator.gen_token(),
-                "password": md5(credentials.password),
+                "password": credentials.password,
                 "email_tmp": credentials.email,
                 "phone_tmp": credentials.phone,
                 "email_verified": False,
@@ -79,9 +80,11 @@ class AuthenticationService(object):
                 "last_verification_attempt": None,
                 "verification_code": new_code
             }
-            self._insert_inc(doc)
+            uid = self._insert_inc(doc)
         return {
             "verification": {
+                "id": uid,
+                "password": credentials.password,
                 "send_code": new_code,
                 "send_via": "email" if credentials.email else ("phone" if credentials.phone else None),
                 "send_address": credentials.email or credentials.phone
@@ -230,6 +233,14 @@ class AuthenticationService(object):
         """
         return self._verify(credentials, verification_code, "phone")
 
+    def get_account_if_exists(self, credentials: 'Credentials') -> Optional[dict]:
+        """ Возвращает идентификатор пользовтеля, если он найден
+        :param credentials:
+        :return:
+        """
+        match = self._get_credentials_record(credentials)
+        return {"id": match["_id"]} if match else None
+
     def _get_credentials_record(self, credentials: 'Credentials') -> Optional[dict]:
         """ Возвращает запись из БД, соответствующую переданным учетным данным, если такие найдены
         :param credentials:
@@ -255,7 +266,7 @@ class AuthenticationService(object):
         if not target_user["verification_code"]:
             raise NoVerificationProcess()
 
-        if not verification_code or verification_code != target_user["verification_code"]:
+        if not verification_code or int(verification_code) != int(target_user["verification_code"]):
             if target_user["verification_code_failed_attempts"] < 3:
                 self.credentials.update_one(target_user, {"$inc": {"verification_code_failed_attempts": 1}})
                 raise IncorrectVerificationCode()
@@ -297,6 +308,9 @@ class AuthenticationService(object):
         if self._check_verification_code(target_user, verification_code):
             self.credentials.update_one(
                 target_user, {"$set": {
+                    "password": md5(target_user["password"])
+                    if not target_user["email_verified"] and not target_user["phone_verified"]
+                    else target_user["password"],
                     "%s" % type_name: target_user["%s_tmp" % type_name],
                     "%s_tmp" % type_name: None,
                     "%s_verified" % type_name: True,
@@ -304,7 +318,7 @@ class AuthenticationService(object):
                     "verification_code_failed_attempts": 0
                 }}
             )
-            return {"verification": {"result": True}}
+            return {"verification": {"result": True, "password": target_user["password"]}}
 
     def _insert_inc(self, doc: dict) -> int:
         """ Вставляет новый документ в коллекцию учетных данных, генерируя инкрементный ключ - привет mongodb...

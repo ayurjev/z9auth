@@ -21,7 +21,6 @@ class RegistrationCase(unittest.TestCase):
         credentials = Credentials()
         self.assertRaises(IncorrectLogin, lambda: self.service.register(credentials))
         credentials.email = "andrey.yurjev@test.ru"
-        self.assertRaises(IncorrectPassword, lambda: self.service.register(credentials))
         credentials.password = "qwerty123"
         register_result = self.service.register(credentials)
         self.assertTrue(isinstance(register_result, dict))
@@ -70,11 +69,11 @@ class RegistrationCase(unittest.TestCase):
         credentials.password = "qwerty123"
         register_result = self.service.register(credentials)
         verification_code = register_result["verification"]["send_code"]
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "blablabla"))
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "blablabla"))
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "blablabla"))
-        self.assertRaises(IncorrectVerificationCodeFatal, lambda: self.service.verify_email(credentials, "blablabla"))
-        self.assertRaises(IncorrectLogin, lambda: self.service.verify_email(credentials, "blablabla"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "9999"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "9999"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "9999"))
+        self.assertRaises(IncorrectVerificationCodeFatal, lambda: self.service.verify_email(credentials, "9999"))
+        self.assertRaises(IncorrectLogin, lambda: self.service.verify_email(credentials, "9999"))
         self.assertRaises(IncorrectLogin, lambda: self.service.verify_email(credentials, verification_code))
 
     def test_fail_phone_verification_and_delete_account(self):
@@ -83,11 +82,11 @@ class RegistrationCase(unittest.TestCase):
         credentials.password = "qwerty123"
         register_result = self.service.register(credentials)
         verification_code = register_result["verification"]["send_code"]
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "blablabla"))
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "blablabla"))
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "blablabla"))
-        self.assertRaises(IncorrectVerificationCodeFatal, lambda: self.service.verify_phone(credentials, "blablabla"))
-        self.assertRaises(IncorrectLogin, lambda: self.service.verify_phone(credentials, "blablabla"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "9999"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "9999"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "9999"))
+        self.assertRaises(IncorrectVerificationCodeFatal, lambda: self.service.verify_phone(credentials, "9999"))
+        self.assertRaises(IncorrectLogin, lambda: self.service.verify_phone(credentials, "9999"))
         self.assertRaises(IncorrectLogin, lambda: self.service.verify_phone(credentials, verification_code))
 
     def test_email_verification_with_third_attempt(self):
@@ -96,8 +95,8 @@ class RegistrationCase(unittest.TestCase):
         credentials.password = "qwerty123"
         register_result = self.service.register(credentials)
         verification_code = register_result["verification"]["send_code"]
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "blablabla"))
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "blablabla"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "9999"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_email(credentials, "9999"))
         self.assertTrue(self.service.verify_email(credentials, verification_code))
 
         auth_result = self.service.authenticate(credentials)
@@ -111,8 +110,8 @@ class RegistrationCase(unittest.TestCase):
         credentials.password = "qwerty123"
         register_result = self.service.register(credentials)
         verification_code = register_result["verification"]["send_code"]
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "blablabla"))
-        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "blablabla"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "9999"))
+        self.assertRaises(IncorrectVerificationCode, lambda: self.service.verify_phone(credentials, "9999"))
         self.assertTrue(self.service.verify_phone(credentials, verification_code))
 
         auth_result = self.service.authenticate(credentials)
@@ -140,6 +139,41 @@ class RegistrationCase(unittest.TestCase):
         self.assertEqual(1, auth_result["authentication"]["id"])
         self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
+    def test_registration_with_autogenerated_password(self):
+        credentials = Credentials()
+        self.assertRaises(IncorrectLogin, lambda: self.service.register(credentials))
+        credentials.email = "andrey.yurjev@test.ru"
+        register_result = self.service.register(credentials)
+        self.assertTrue(isinstance(register_result, dict))
+        self.assertTrue("verification" in register_result)
+        self.assertTrue("id" in register_result["verification"])
+        self.assertTrue("password" in register_result["verification"])
+        self.assertTrue("send_code" in register_result["verification"])
+        self.assertTrue("send_via" in register_result["verification"])
+        self.assertTrue("send_address" in register_result["verification"])
+        self.assertEqual(1, register_result["verification"]["id"])
+        self.assertEqual(8, len(register_result["verification"]["password"]))
+        self.assertEqual("email", register_result["verification"]["send_via"])
+        self.assertEqual("andrey.yurjev@test.ru", register_result["verification"]["send_address"])
+        verification_code = register_result["verification"]["send_code"]
+
+        credentials2 = Credentials()
+        credentials2.email = "andrey.yurjev@test.ru"
+        self.assertRaises(IncorrectLogin, lambda: self.service.authenticate(credentials2))
+        verification_result = self.service.verify_email(credentials2, verification_code)
+        self.assertTrue(isinstance(verification_result, dict))
+        self.assertTrue("verification" in verification_result)
+        self.assertTrue("result" in verification_result["verification"])
+        self.assertEqual(True, verification_result["verification"]["result"])
+        self.assertTrue("password" in verification_result["verification"])
+        self.assertEqual(8, len(verification_result["verification"]["password"]))
+
+        self.assertRaises(IncorrectPassword, lambda : self.service.authenticate(credentials2))
+        credentials2.password = verification_result["verification"]["password"]
+        auth_result = self.service.authenticate(credentials2)
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
 class AuthentificationCase(unittest.TestCase):
 
@@ -356,10 +390,10 @@ class ChangeCredentialsCase(unittest.TestCase):
     def test_fail_to_verify_phone_when_email_verified_doesnt_remove_credentials(self):
         result = self.service.set_new_phone(self.email_credentials, "+79164143212")
         verification_code = result["verification"]["send_code"]
-        self.assertRaises(IncorrectVerificationCode, self.service.verify_phone, self.email_credentials, "bla")
-        self.assertRaises(IncorrectVerificationCode, self.service.verify_phone, self.email_credentials, "bla")
-        self.assertRaises(IncorrectVerificationCode, self.service.verify_phone, self.email_credentials, "bla")
-        self.assertRaises(IncorrectVerificationCodeFatal, self.service.verify_phone, self.email_credentials, "bla")
+        self.assertRaises(IncorrectVerificationCode, self.service.verify_phone, self.email_credentials, "9999")
+        self.assertRaises(IncorrectVerificationCode, self.service.verify_phone, self.email_credentials, "9999")
+        self.assertRaises(IncorrectVerificationCode, self.service.verify_phone, self.email_credentials, "9999")
+        self.assertRaises(IncorrectVerificationCodeFatal, self.service.verify_phone, self.email_credentials, "9999")
         self.assertRaises(NoVerificationProcess, self.service.verify_phone, self.email_credentials, verification_code)
 
         self.service.authenticate(self.email_credentials)
@@ -603,7 +637,7 @@ class ApiTestCase(unittest.TestCase):
 
     def test_exception_format(self):
         self.app.get("/v1/register/", {"email": "a@b.ru", "password": "12345"})
-        response = self.app.get("/v1/verify_email/", {"email": "a@b.ru", "verification_code": "WRONG CODE!"})
+        response = self.app.get("/v1/verify_email/", {"email": "a@b.ru", "verification_code": "9999"})
         response = json.loads(response.body.decode())
         self.assertTrue(isinstance(response, dict))
         self.assertTrue(isinstance(response["error"], dict))
