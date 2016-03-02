@@ -70,7 +70,7 @@ class AuthenticationService(object):
                 "email": None,
                 "phone": None,
                 "vk_id": credentials.vk_id,
-                "token": CodesGenerator.gen_token(),
+                "%stoken" % credentials.token_name: CodesGenerator.gen_token(),
                 "password": credentials.password,
                 "email_tmp": credentials.email,
                 "phone_tmp": credentials.phone,
@@ -104,10 +104,10 @@ class AuthenticationService(object):
         else:
             if credentials.email or credentials.phone:
                 token = CodesGenerator.gen_token()
-                self.credentials.update_one(match, {"$set": {"token": token}})
+                self.credentials.update_one(match, {"$set": {"%stoken" % credentials.token_name: token}})
             else:
-                token = match["token"]
-            return {"authentication": {"id": match["_id"], "token": token}}
+                token = match["%stoken" % credentials.token_name]
+            return {"authentication": {"id": match["_id"], "%stoken" % credentials.token_name: token}}
 
     def authenticate_vk(self, credentials: 'Credentials', vk_data: str, sig: str):
         """ Выполняет аутентификацию на основе Вконтакте API
@@ -121,12 +121,14 @@ class AuthenticationService(object):
         match = self._get_credentials_record(credentials)
         if match:
             token = CodesGenerator.gen_token()
-            self.credentials.update_one(match, {"$set": {"token": token, "vk_id": credentials.vk_id}})
+            self.credentials.update_one(
+                match, {"$set": {"%stoken" % credentials.token_name: token, "vk_id": credentials.vk_id}}
+            )
         else:
             self.register(credentials)
             match = self._get_credentials_record(credentials)
             token = match["token"]
-        return {"authentication": {"id": match["_id"], "token": token}}
+        return {"authentication": {"id": match["_id"], "%stoken" % credentials.token_name: token}}
 
     def recover_password(self, credentials: 'Credentials') -> str:
         """ Меняет пароль пользователя на новый и возвращает его с указанием по какому каналу его можно выслать
@@ -250,7 +252,7 @@ class AuthenticationService(object):
         if credentials.vk_id:
             match = self.credentials.find_one({"vk_id": credentials.vk_id})
         if credentials.token:
-            match = self.credentials.find_one({"token": credentials.token})
+            match = self.credentials.find_one({"%stoken" % credentials.token_name: credentials.token})
         if credentials.email:
             match = self.credentials.find_one({"email": credentials.email})
         if credentials.phone:
@@ -347,9 +349,10 @@ class Credentials(object):
         self.password = None
         self.token = None
         self.vk_id = None
+        self.token_name = ""
 
     def __str__(self):
-        return "%s  %s  %s  %s  %s" % (self.email, self.phone, self.token, self.vk_id, self.password)
+        return "%s  %s  %s  %s %s %s" % (self.email, self.phone, self.token_name, self.token, self.vk_id, self.password)
 
 
 class CodesGenerator(object):

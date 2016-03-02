@@ -36,7 +36,8 @@ class AuthController(Controller):
         credentials = Credentials()
         credentials.email = request.get("email", None)
         credentials.phone = normalize_phone_number(request.get("phone")) if request.get("phone", False) else None
-        credentials.token = request.get("token", None)
+        credentials.token_name = request.get("token_name", "")
+        credentials.token = request.get("%stoken" % credentials.token_name, None)
         credentials.password = request.get("password", None)
         credentials.vk_id = request.get("vk_id", None)
         return credentials

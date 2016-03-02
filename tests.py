@@ -289,6 +289,27 @@ class AuthentificationCase(unittest.TestCase):
         self.assertEqual(1, auth_result["authentication"]["id"])
         self.assertEqual(token, auth_result["authentication"]["token"])
 
+    def test_auth_by_domain_specific_token(self):
+        self.email_credentials.token_name = "test"
+        auth_result = self.service.authenticate(self.email_credentials)
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["testtoken"]))
+        token = auth_result["authentication"]["testtoken"]
+
+        new_credentials = Credentials()
+        new_credentials.token = token
+        new_credentials.token_name = "test"
+        auth_result = self.service.authenticate(new_credentials)
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(32, len(auth_result["authentication"]["testtoken"]))
+        # При авторизации по токену, токен не меняется:
+        auth_result = self.service.authenticate(new_credentials)
+        self.assertTrue(isinstance(auth_result, dict))
+        self.assertEqual(1, auth_result["authentication"]["id"])
+        self.assertEqual(token, auth_result["authentication"]["testtoken"])
+
 
 class ChangeCredentialsCase(unittest.TestCase):
 
