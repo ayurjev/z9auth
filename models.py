@@ -127,7 +127,7 @@ class AuthenticationService(object):
         else:
             self.register(credentials)
             match = self._get_credentials_record(credentials)
-            token = match["token"]
+            token = match["%stoken" % credentials.token_name]
         return {"authentication": {"id": match["_id"], "%stoken" % credentials.token_name: token}}
 
     def recover_password(self, credentials: 'Credentials') -> str:
