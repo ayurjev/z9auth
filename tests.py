@@ -431,82 +431,6 @@ class ChangeCredentialsCase(unittest.TestCase):
         self.assertEqual(32, len(auth_result["authentication"]["token"]))
 
 
-class VkAuthCase(unittest.TestCase):
-
-    def setUp(self):
-        self.service = AuthenticationService()
-
-    def tearDown(self):
-        self.service.credentials.delete_many({})
-
-    def test_init_registration_with_vk(self):
-        os.environ["VK_APP_SECRET_KEY"] = "12345"
-        vk_id = 42
-        vk_concated_string = "blablabla=1&blabla=2"
-        sig = md5(vk_concated_string.replace("&", "") + "12345")
-        credentials = Credentials()
-        credentials.vk_id = vk_id
-        result = self.service.authenticate_vk(credentials, vk_concated_string, sig)
-        self.assertTrue(isinstance(result, dict))
-        self.assertEqual(1, result["authentication"]["id"])
-        self.assertEqual(32, len(result["authentication"]["token"]))
-        token = result["authentication"]["token"]
-
-        # Используя токен, полученный при регистрации через вк авторизуемся стандартным путем:
-        credentials.token = token
-        auth_result = self.service.authenticate(credentials)
-        self.assertTrue(isinstance(result, dict))
-        self.assertEqual(1, result["authentication"]["id"])
-        self.assertEqual(32, len(result["authentication"]["token"]))
-
-    def test_vk_auth_after_normal_registartion(self):
-        os.environ["VK_APP_SECRET_KEY"] = "12345"
-        vk_id = 42
-        vk_concated_string = "blablabla=1&blabla=2"
-        sig = md5(vk_concated_string.replace("&", "") + "12345")
-
-        # Обычная регистрация, получаем токен:
-        credentials = Credentials()
-        credentials.phone = "+79263435016"
-        credentials.password = "qwerty123"
-        register_result = self.service.register(credentials)
-        verification_code = register_result["verification"]["send_code"]
-        self.service.verify_phone(credentials, verification_code)
-        auth_result = self.service.authenticate(credentials)
-        self.assertEqual(1, auth_result["authentication"]["id"])
-        token = auth_result["authentication"]["token"]
-
-        # Используем токен и укажем vk_id:
-        new_credentials = Credentials()
-        new_credentials.token = token
-        new_credentials.vk_id = vk_id
-        vk_auth_result = self.service.authenticate_vk(new_credentials, vk_concated_string, sig)
-        self.assertTrue(isinstance(vk_auth_result, dict))
-        self.assertEqual(1, vk_auth_result["authentication"]["id"])
-        self.assertEqual(32, len(vk_auth_result["authentication"]["token"]))
-
-        # Теперь можно и без токена:
-        new_credentials = Credentials()
-        new_credentials.vk_id = vk_id
-        vk_auth_result = self.service.authenticate_vk(new_credentials, vk_concated_string, sig)
-        self.assertTrue(isinstance(vk_auth_result, dict))
-        self.assertEqual(1, vk_auth_result["authentication"]["id"])
-        self.assertEqual(32, len(vk_auth_result["authentication"]["token"]))
-        self.assertNotEqual(token, vk_auth_result["authentication"]["token"])
-
-    def test_vk_auth_fail(self):
-        os.environ["VK_APP_SECRET_KEY"] = "12345"
-        vk_id = 42
-        vk_concated_string = "blablabla=1&blabla=2"
-        sig = md5(vk_concated_string.replace("&", "") + "12345")
-        credentials = Credentials()
-        credentials.vk_id = vk_id
-        self.assertRaises(
-            IncorrectOAuthSignature,
-            self.service.authenticate_vk, credentials, vk_concated_string, sig+"1"
-        )
-
-
 class ApiTestCase(unittest.TestCase):
 
     def setUp(self):
@@ -640,21 +564,6 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(response["verification"]["send_via"], "phone")
         self.assertEqual(response["verification"]["send_address"], "+79114235678")
         self.assertEqual(4, len(response["verification"]["send_code"]))
-
-    def test_authenticate_vk(self):
-        os.environ["VK_APP_SECRET_KEY"] = "12345"
-        vk_id = 42
-        vk_concated_string = "blablabla=1&blabla=2"
-        sig = md5(vk_concated_string.replace("&", "") + "12345")
-        credentials = Credentials()
-        credentials.vk_id = vk_id
-        response = self.app.get(
-            "/v1/authenticate_vk/", {"vk_id": "42", "vk_concated_string": vk_concated_string, "signature": sig}
-        )
-        response = json.loads(response.body.decode())
-        self.assertTrue(isinstance(response, dict))
-        self.assertEqual(1, response["authentication"]["id"])
-        self.assertEqual(32, len(response["authentication"]["token"]))
 
     def test_exception_format(self):
         self.app.get("/v1/register/", {"email": "a@b.ru", "password": "12345"})

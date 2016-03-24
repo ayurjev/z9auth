@@ -109,15 +109,48 @@ class AuthenticationService(object):
                 token = match["%stoken" % credentials.token_name]
             return {"authentication": {"id": match["_id"], "%stoken" % credentials.token_name: token}}
 
-    def authenticate_vk(self, credentials: 'Credentials', vk_data: str, sig: str):
+    def authenticate_vk(self, credentials: 'Credentials', code: str):
         """ Выполняет аутентификацию на основе Вконтакте API
         :param credentials:
-        :param vk_data: Данные Вк для проверки подписи (Сконкатенированная строка)
-        :param sig: Подпись
+        :param code: Код аутентификации ВК
         :return:
         """
-        if not md5(vk_data.replace("&", "") + os.environ.get("VK_APP_SECRET_KEY")) == sig:
+        import json
+        import requests
+        data = {
+            "client_id": os.environ.get("VK_APP_ID"),
+            "client_secret": os.environ.get("VK_APP_SECRET_KEY"),
+            "redirect_uri": os.environ.get("VK_REDIRECT_URI"),
+            "code": code
+        }
+
+        vk_id = None
+        # noinspection PyBroadException
+        try:
+            r = requests.post("https://oauth.vk.com/access_token", data)
+            result = json.loads(r.text)
+            vk_id = result.get("user_id")
+            if not vk_id:
+                raise IncorrectOAuthSignature()
+            data2 = {
+                "user_ids": result.get("user_id"),
+                "v": "5.8",
+                "access_token": result.get("access_token"),
+                "fields": "photo_max,contacts,interests,music,sex,city,bdate"
+            }
+            r2 = requests.post("https://api.vk.com/method/users.get", data2)
+            result2 = json.loads(r2.text)
+        except:
             raise IncorrectOAuthSignature()
+
+        if result and result.get("error"):
+            raise IncorrectOAuthSignature()
+
+        if not vk_id:
+            raise IncorrectOAuthSignature()
+
+        credentials.vk_id = vk_id
+
         match = self._get_credentials_record(credentials)
         if match:
             token = CodesGenerator.gen_token()
@@ -128,7 +161,7 @@ class AuthenticationService(object):
             self.register(credentials)
             match = self._get_credentials_record(credentials)
             token = match["%stoken" % credentials.token_name]
-        return {"authentication": {"id": match["_id"], "%stoken" % credentials.token_name: token}}
+        return {"authentication": {"id": match["_id"], "%stoken" % credentials.token_name: token, "vk_data": result2}}
 
     def recover_password(self, credentials: 'Credentials') -> str:
         """ Меняет пароль пользователя на новый и возвращает его с указанием по какому каналу его можно выслать

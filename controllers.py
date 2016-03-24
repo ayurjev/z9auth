@@ -1,7 +1,8 @@
 """ Контроллеры сервиса """
 
+import os
 import json
-from envi import Controller, Request
+from envi import Controller, Request, microservice
 from models import Credentials, AuthenticationService, normalize_phone_number
 from exceptions import BaseAuthException
 
@@ -70,8 +71,8 @@ class AuthController(Controller):
         :param kwargs:
         :return:
         """
-        vk_data, sig = request.get("vk_concated_string"), request.get("signature")
-        return service.authenticate_vk(cls.build_credentials(request), vk_data, sig)
+        code = request.get("code")
+        return service.authenticate_vk(cls.build_credentials(request), code)
 
     @classmethod
     @error_format
@@ -155,3 +156,16 @@ class AuthController(Controller):
         :return:
         """
         return service.get_account_if_exists(cls.build_credentials(request))
+
+    @classmethod
+    @error_format
+    def get_vk_data(cls, request: Request, **kwargs):
+        """ Возвращает идентификатор приложения ВК, если он сконфигурирован
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return {"vk_data": {
+            "vk_app_id": os.environ.get("VK_APP_ID"),
+            "vk_redirect_uri": os.environ.get("VK_REDIRECT_URI")
+        }}
