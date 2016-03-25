@@ -37,9 +37,10 @@ class AuthenticationService(object):
             "vk_id": match.get("vk_id")
         }
 
-    def register(self, credentials: 'Credentials') -> str:
+    def register(self, credentials: 'Credentials', email_verified: bool=False) -> str:
         """ Начинает процедуру регистрации, создает пустую запись, генерирует и возвращает код верификации
         :param credentials:
+        :param email_verified:
         :return:
         """
         match = self._get_credentials_record(credentials)
@@ -67,14 +68,14 @@ class AuthenticationService(object):
             uid = interrupted_registration_attempt_match["_id"]
         else:
             doc = {
-                "email": None,
+                "email": credentials.email if email_verified else None,
                 "phone": None,
                 "vk_id": credentials.vk_id,
                 "%stoken" % credentials.token_name: CodesGenerator.gen_token(),
                 "password": credentials.password,
                 "email_tmp": credentials.email,
                 "phone_tmp": credentials.phone,
-                "email_verified": False,
+                "email_verified": email_verified,
                 "phone_verified": False,
                 "verification_code_failed_attempts": 0,
                 "last_verification_attempt": None,
@@ -109,10 +110,11 @@ class AuthenticationService(object):
                 token = match["%stoken" % credentials.token_name]
             return {"authentication": {"id": match["_id"], "%stoken" % credentials.token_name: token}}
 
-    def authenticate_vk(self, credentials: 'Credentials', code: str):
+    def authenticate_vk(self, credentials: 'Credentials', code: str, redirect_url: str=None):
         """ Выполняет аутентификацию на основе Вконтакте API
         :param credentials:
         :param code: Код аутентификации ВК
+        :param redirect_url: Дополнительная часть URL редиректа (опционально)
         :return:
         """
         import json
@@ -120,7 +122,7 @@ class AuthenticationService(object):
         data = {
             "client_id": os.environ.get("VK_APP_ID"),
             "client_secret": os.environ.get("VK_APP_SECRET_KEY"),
-            "redirect_uri": os.environ.get("VK_REDIRECT_URI"),
+            "redirect_uri": "%s%s" % (os.environ.get("VK_REDIRECT_URI"), redirect_url if redirect_url else ""),
             "code": code
         }
 
@@ -129,6 +131,7 @@ class AuthenticationService(object):
         try:
             r = requests.post("https://oauth.vk.com/access_token", data)
             result = json.loads(r.text)
+            print(result)
             vk_id = result.get("user_id")
             if not vk_id:
                 raise IncorrectOAuthSignature()
@@ -136,29 +139,42 @@ class AuthenticationService(object):
                 "user_ids": result.get("user_id"),
                 "v": "5.8",
                 "access_token": result.get("access_token"),
-                "fields": "photo_max,contacts,interests,music,sex,city,bdate"
+                "fields": os.environ.get("VK_SCOPE", "photo_max,contacts,interests,music,sex,city,bdate")
             }
             r2 = requests.post("https://api.vk.com/method/users.get", data2)
             result2 = json.loads(r2.text)
-        except:
+            result2 = result2.get("response")[0] if result2.get("response") else {}
+            result2["vk_id"] = result.get("user_id")
+            result2["email"] = result.get("email")
+        except Exception as err:
+            print(err)
             raise IncorrectOAuthSignature()
 
         if result and result.get("error"):
+            print(result)
             raise IncorrectOAuthSignature()
 
         if not vk_id:
             raise IncorrectOAuthSignature()
 
-        credentials.vk_id = vk_id
+        credentials.vk_id = int(vk_id)
+        credentials.email = result2.get("email")
 
         match = self._get_credentials_record(credentials)
         if match:
             token = CodesGenerator.gen_token()
             self.credentials.update_one(
-                match, {"$set": {"%stoken" % credentials.token_name: token, "vk_id": credentials.vk_id}}
+                match, {
+                    "$set": {
+                        "email": result2.get("email", match["email"] if match["email_verified"] else None),
+                        "email_verified": True if result2.get("email") else match["email_verified"],
+                        "%stoken" % credentials.token_name: token,
+                        "vk_id": credentials.vk_id
+                    }
+                }
             )
         else:
-            self.register(credentials)
+            self.register(credentials, email_verified=True)
             match = self._get_credentials_record(credentials)
             token = match["%stoken" % credentials.token_name]
         return {"authentication": {"id": match["_id"], "%stoken" % credentials.token_name: token, "vk_data": result2}}

@@ -72,7 +72,8 @@ class AuthController(Controller):
         :return:
         """
         code = request.get("code")
-        return service.authenticate_vk(cls.build_credentials(request), code)
+        redirect_url = request.get("redirect_url", None)
+        return service.authenticate_vk(cls.build_credentials(request), code, redirect_url)
 
     @classmethod
     @error_format
