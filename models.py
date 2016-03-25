@@ -37,10 +37,11 @@ class AuthenticationService(object):
             "vk_id": match.get("vk_id")
         }
 
-    def register(self, credentials: 'Credentials', email_verified: bool=False) -> str:
+    def register(self, credentials: 'Credentials', email_verified: bool=False, phone_verified: bool=False) -> str:
         """ Начинает процедуру регистрации, создает пустую запись, генерирует и возвращает код верификации
         :param credentials:
         :param email_verified:
+        :param phone_verified:
         :return:
         """
         match = self._get_credentials_record(credentials)
@@ -69,14 +70,14 @@ class AuthenticationService(object):
         else:
             doc = {
                 "email": credentials.email if email_verified else None,
-                "phone": None,
+                "phone": credentials.phone if phone_verified else None,
                 "vk_id": credentials.vk_id,
                 "%stoken" % credentials.token_name: CodesGenerator.gen_token(),
                 "password": credentials.password,
                 "email_tmp": credentials.email,
                 "phone_tmp": credentials.phone,
                 "email_verified": email_verified,
-                "phone_verified": False,
+                "phone_verified": phone_verified,
                 "verification_code_failed_attempts": 0,
                 "last_verification_attempt": None,
                 "verification_code": new_code
@@ -146,6 +147,10 @@ class AuthenticationService(object):
             result2 = result2.get("response")[0] if result2.get("response") else {}
             result2["vk_id"] = result.get("user_id")
             result2["email"] = result.get("email")
+            result2["phone"] = result2.get("mobile_phone", result2.get("home_phone", None))
+            if result2.get("phone"):
+                result2["phone"] = normalize_phone_number(result2["phone"])
+            print(result2)
         except Exception as err:
             print(err)
             raise IncorrectOAuthSignature()
@@ -159,6 +164,7 @@ class AuthenticationService(object):
 
         credentials.vk_id = int(vk_id)
         credentials.email = result2.get("email")
+        credentials.phone = result2.get("phone")
 
         match = self._get_credentials_record(credentials)
         if match:
@@ -166,15 +172,17 @@ class AuthenticationService(object):
             self.credentials.update_one(
                 match, {
                     "$set": {
-                        "email": result2.get("email", match["email"] if match["email_verified"] else None),
-                        "email_verified": True if result2.get("email") else match["email_verified"],
+                        "vk_id": credentials.vk_id,
                         "%stoken" % credentials.token_name: token,
-                        "vk_id": credentials.vk_id
+                        "phone": result2.get("phone") if result2.get("phone") else (match["phone"] if match["phone_verified"] else None),
+                        "email": result2.get("email") if result2.get("email") else (match["email"] if match["email_verified"] else None),
+                        "email_verified": True if result2.get("email") else match["email_verified"],
+                        "phone_verified": True if result2.get("phone") else match["phone_verified"]
                     }
                 }
             )
         else:
-            self.register(credentials, email_verified=True)
+            self.register(credentials, email_verified=True, phone_verified=True)
             match = self._get_credentials_record(credentials)
             token = match["%stoken" % credentials.token_name]
         return {"authentication": {"id": match["_id"], "%stoken" % credentials.token_name: token, "vk_data": result2}}
@@ -300,11 +308,11 @@ class AuthenticationService(object):
         match = None
         if credentials.vk_id:
             match = self.credentials.find_one({"vk_id": credentials.vk_id})
-        if credentials.token:
+        elif credentials.token:
             match = self.credentials.find_one({"%stoken" % credentials.token_name: credentials.token})
-        if credentials.email:
+        elif credentials.email:
             match = self.credentials.find_one({"email": credentials.email})
-        if credentials.phone:
+        elif credentials.phone:
             match = self.credentials.find_one({"phone": credentials.phone})
         return match
 
