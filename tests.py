@@ -586,3 +586,27 @@ class ApiTestCase(unittest.TestCase):
         self.assertEqual(10, NoSuchUser.code)
         self.assertEqual(11, AlreadyRegistred.code)
         self.assertEqual(12, NoVerificationProcess.code)
+
+    def test_test(self):
+        """
+        Регрессионный тест
+        Странная особенность - если при повторной попытке зарегистрироваться указана недействительная кука -
+        то ограничение по уникальности логина не срабатывает, получаются дубли
+        Такого быть не должно.
+        Данный тест проверяет, что в системе предусмотрена жесткая проверка
+        на наличие указанного логина перед вставкой новых записей
+        :return:
+        """
+        credentials1 = Credentials()
+        credentials1.email = "andrey.yurjev@test.ru"
+        credentials1.password = "qwerty123"
+        register_result1 = self.service.register(credentials1)
+        verification_code1 = register_result1["verification"]["send_code"]
+        self.service.verify_email(credentials1, verification_code1)
+
+        credentials2 = Credentials()
+        credentials2.email = "andrey.yurjev@test.ru"
+        credentials2.token = "blablbalblabdlablblad"
+        credentials2.password = "qwertyqwertyqwerty"
+        self.assertRaises(AlreadyRegistred, lambda: self.service.register(credentials2))
+

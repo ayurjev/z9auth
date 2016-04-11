@@ -16,7 +16,7 @@ class AuthenticationService(object):
     """ Модель сервиса аутентификации """
 
     def __init__(self):
-        self.client = MongoClient('mongo', 27017)
+        self.client = MongoClient('mongo', 27017, connect=False)
         self.credentials = self.client.db.credentials
 
     def get_credentials(self, uid: int):
@@ -47,6 +47,7 @@ class AuthenticationService(object):
         match = self._get_credentials_record(credentials)
         if match:
             raise AlreadyRegistred()
+
         if not credentials.email and not credentials.phone and not credentials.vk_id:
             raise IncorrectLogin()
         if (credentials.email or credentials.phone) and not credentials.password:
@@ -308,11 +309,11 @@ class AuthenticationService(object):
         match = None
         if credentials.vk_id:
             match = self.credentials.find_one({"vk_id": credentials.vk_id})
-        elif credentials.token:
+        if not match and credentials.token:
             match = self.credentials.find_one({"%stoken" % credentials.token_name: credentials.token})
-        elif credentials.email:
+        if not match and credentials.email:
             match = self.credentials.find_one({"email": credentials.email})
-        elif credentials.phone:
+        if not match and credentials.phone:
             match = self.credentials.find_one({"phone": credentials.phone})
         return match
 

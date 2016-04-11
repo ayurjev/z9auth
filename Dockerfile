@@ -31,4 +31,4 @@ WORKDIR /var/www/
 COPY . /var/www/
 
 EXPOSE 80
-CMD ["uwsgi", "--http", ":80", "--wsgi-file", "application.py"]
+CMD ["uwsgi", "uwsgi.ini"]
