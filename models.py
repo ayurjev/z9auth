@@ -220,25 +220,23 @@ class AuthenticationService(object):
         @param new_pass2: Подтверждение нового пароля
         @return:
         """
-        auth = self.authenticate(credentials)
-        if auth:
-            match = self._get_credentials_record(credentials)
-            if match:
-                if match["password"] != md5(old_pass):
-                    raise IncorrectPassword()
-                if new_pass != new_pass2:
-                    raise NewPasswordsMismatch()
+        match = self._get_credentials_record(credentials)
+        if match:
+            if match["password"] != md5(old_pass):
+                raise IncorrectPassword()
+            if new_pass != new_pass2:
+                raise NewPasswordsMismatch()
 
-                if match and match["email"] and match["email_verified"]:
-                    self.credentials.update_one(match, {"$set": {"password": md5(new_pass)}})
-                    return {"new_password": {
-                        "send_password": new_pass, "send_via": "email", "send_address": match["email"]
-                    }}
-                elif match and match["phone"] and match["phone_verified"]:
-                    self.credentials.update_one(match, {"$set": {"password": md5(new_pass)}})
-                    return {"new_password": {
-                        "send_password": new_pass, "send_via": "phone", "send_address": match["phone"]
-                    }}
+            if match and match["email"] and match["email_verified"]:
+                self.credentials.update_one(match, {"$set": {"password": md5(new_pass)}})
+                return {"new_password": {
+                    "send_password": new_pass, "send_via": "email", "send_address": match["email"]
+                }}
+            elif match and match["phone"] and match["phone_verified"]:
+                self.credentials.update_one(match, {"$set": {"password": md5(new_pass)}})
+                return {"new_password": {
+                    "send_password": new_pass, "send_via": "phone", "send_address": match["phone"]
+                }}
 
     def set_new_email(self, credentials: 'Credentials', new_email: str) -> str:
         """ Начинает процесс смены email адреса, ставит его в tmp-состояние и возвращает код верификации
@@ -251,7 +249,7 @@ class AuthenticationService(object):
             match = self._get_credentials_record(credentials)
             if match:
                 if self.credentials.count({"email": new_email, "email_verified": True}):
-                    raise IncorrectLogin("Указанный email уже используется в системе")
+                    raise AlreadyRegistred("Указанный email уже используется в системе")
                 change = {
                     "email_tmp": new_email,
                     "verification_code_failed_attempts": 0,
@@ -274,7 +272,7 @@ class AuthenticationService(object):
             match = self._get_credentials_record(credentials)
             if match:
                 if self.credentials.count({"phone": new_phone, "phone_verified": True}):
-                    raise IncorrectLogin("Указанный телефон уже используется в системе")
+                    raise AlreadyRegistred("Указанный телефон уже используется в системе")
                 change = {
                     "phone_tmp": new_phone,
                     "verification_code_failed_attempts": 0,
