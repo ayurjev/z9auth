@@ -150,7 +150,10 @@ class AuthenticationService(object):
             result2["email"] = result.get("email")
             result2["phone"] = result2.get("mobile_phone", result2.get("home_phone", None))
             if result2.get("phone"):
-                result2["phone"] = normalize_phone_number(result2["phone"])
+                try:
+                    result2["phone"] = normalize_phone_number(result2["phone"])
+                except:
+                    result2["phone"] = None
             print(result2)
         except Exception as err:
             print(err)
@@ -247,6 +250,8 @@ class AuthenticationService(object):
         if auth:
             match = self._get_credentials_record(credentials)
             if match:
+                if self.credentials.count({"email": new_email, "email_verified": True}):
+                    raise IncorrectLogin("Указанный email уже используется в системе")
                 change = {
                     "email_tmp": new_email,
                     "verification_code_failed_attempts": 0,
@@ -268,6 +273,8 @@ class AuthenticationService(object):
         if auth:
             match = self._get_credentials_record(credentials)
             if match:
+                if self.credentials.count({"phone": new_phone, "phone_verified": True}):
+                    raise IncorrectLogin("Указанный телефон уже используется в системе")
                 change = {
                     "phone_tmp": new_phone,
                     "verification_code_failed_attempts": 0,
