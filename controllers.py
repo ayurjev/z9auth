@@ -150,6 +150,16 @@ class AuthController(Controller):
 
     @classmethod
     @error_format
+    def delete_credentials(cls, request: Request, **kwargs):
+        """ Удаляет учетные данные по id
+        :param request:
+        :param kwargs:
+        :return:
+        """
+        return service.delete_credentials(request.get("uid"))
+
+    @classmethod
+    @error_format
     def get_account_if_exists(cls, request: Request, **kwargs):
         """ Возвращает учетные данные по email, телефону или другим параметрам если аккаунт существует
         :param request:

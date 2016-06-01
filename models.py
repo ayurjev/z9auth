@@ -37,6 +37,14 @@ class AuthenticationService(object):
             "vk_id": match.get("vk_id")
         }
 
+    def delete_credentials(self, uid: int):
+        """ Удаляет учетные данные по id
+        :param uid:
+        :return:
+        """
+        self.credentials.delete_one({"_id": uid})
+        return True
+
     def register(self, credentials: 'Credentials', email_verified: bool=False, phone_verified: bool=False) -> str:
         """ Начинает процедуру регистрации, создает пустую запись, генерирует и возвращает код верификации
         :param credentials:
