@@ -35,7 +35,7 @@ class AuthController(Controller):
         :return:
         """
         credentials = Credentials()
-        credentials.email = request.get("email", None)
+        credentials.email = request.get("email").lower() if request.get("email", None) else None
         credentials.phone = normalize_phone_number(request.get("phone")) if request.get("phone", False) else None
         credentials.token_name = request.get("token_name", "")
         credentials.token = request.get("%stoken" % credentials.token_name, None)
