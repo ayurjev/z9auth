@@ -463,10 +463,7 @@ def normalize_phone_number(number: str) -> str:
     """ Приводит номер к правильному строковому представлению
     :param number: Номер телефона
     """
-    digits = re.sub("[^\d]", "", str(number))
-    if len(digits) < 10:
-        raise InvalidPhoneNumber(number)
-    return "+7%s" % (digits[1 if digits[0] in ["7", "8"] else 0:11])
+    return "+%s" % re.sub("[^\d]", "", str(number))
 
 
 def md5(value: Union[str, bytes]) -> str:
